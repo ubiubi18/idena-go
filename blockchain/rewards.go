@@ -38,7 +38,7 @@ func rewardValidIdentities(appState *appstate.AppState, config *config.Consensus
 
 func stakeWeight(stake *big.Int) float32 {
 	stakeF, _ := ConvertToFloat(stake).Float64()
-	return float32(math2.Pow(stakeF, 0.9))
+	return float32(math2.Pow(stakeF, 0.75))
 }
 
 func addSuccessfulValidationReward(appState *appstate.AppState, config *config.ConsensusConf,
