@@ -15,12 +15,25 @@ func BuildTxWithFeeEstimating(state *appstate.AppState, from common.Address, to 
 	maxFee decimal.Decimal, tips decimal.Decimal, nonce uint32, epoch uint16, payload []byte) *types.Transaction {
 	if maxFee == (decimal.Decimal{}) || maxFee == decimal.Zero {
 		tx := BuildTx(state, from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
-		txFee := fee.CalculateFee(state.ValidatorsCache.NetworkSize(), state.State.FeePerGas(), tx)
+		networkSize := effectiveFeeNetworkSize(state.ValidatorsCache.NetworkSize())
+		estimatedFeePerGas := state.State.FeePerGas()
+		minFeePerGas := fee.GetFeePerGasForNetwork(networkSize)
+		if common.ZeroOrNil(estimatedFeePerGas) || estimatedFeePerGas.Cmp(minFeePerGas) == -1 {
+			estimatedFeePerGas = minFeePerGas
+		}
+		txFee := fee.CalculateFee(networkSize, estimatedFeePerGas, tx)
 		maxFee = ConvertToFloat(new(big.Int).Mul(txFee, big.NewInt(2)))
 	}
 
 	tx := BuildTx(state, from, to, txType, amount, maxFee, tips, nonce, epoch, payload)
 	return tx
+}
+
+func effectiveFeeNetworkSize(networkSize int) int {
+	if networkSize <= 0 {
+		return 1
+	}
+	return networkSize
 }
 
 func BuildTx(appState *appstate.AppState, from common.Address, to *common.Address, txType types.TxType,

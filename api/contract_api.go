@@ -388,6 +388,9 @@ func convertActionResult(protoModel *models.ActionResult) *ActionResult {
 }
 
 func convertReceipt(tx *types.Transaction, receipt *types.TxReceipt, feePerGas *big.Int) *TxReceipt {
+	if tx == nil || receipt == nil {
+		return nil
+	}
 	fee := fee.CalculateFee(1, feePerGas, tx)
 	var err string
 	if receipt.Error != nil {

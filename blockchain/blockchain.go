@@ -2634,7 +2634,7 @@ func (chain *Blockchain) GetReceipt(hash common.Hash) *types.TxReceipt {
 	}
 	r := types.TxReceipts{}
 	r = r.FromBytes(data)
-	if len(r) < int(idx.Idx) {
+	if len(r) <= int(idx.Idx) {
 		return nil
 	}
 	return r[idx.Idx]

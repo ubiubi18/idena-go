@@ -1,6 +1,7 @@
 package subscriptions
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"github.com/idena-network/idena-go/common"
@@ -27,19 +28,23 @@ func NewManager(datadir string) (*Manager, error) {
 	}
 
 	file, err := m.openFile()
+	if err != nil {
+		return nil, err
+	}
 	defer file.Close()
-	if err == nil {
-		data, err := ioutil.ReadAll(file)
-		if err != nil {
-			return nil, err
-		}
 
-		list := []*Subscription{}
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+
+	list := []*Subscription{}
+	if len(bytes.TrimSpace(data)) > 0 {
 		if err := json.Unmarshal(data, &list); err != nil {
 			log.Warn("cannot parse subscriptions.json", "err", err)
 		}
-		m.list = list
 	}
+	m.list = list
 	return m, nil
 }
 
@@ -62,10 +67,11 @@ func (m *Manager) Subscribe(contract common.Address, event string) error {
 
 func (m *Manager) persist() error {
 	file, err := m.openFile()
-	defer file.Close()
 	if err != nil {
 		return err
 	}
+	defer file.Close()
+
 	data, err := json.Marshal(m.list)
 	if err != nil {
 		return err
