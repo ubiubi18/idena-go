@@ -13,35 +13,29 @@ jobs:
   build:
     strategy:
       matrix:
-        go-version: [1.17.x]
+        go-version: [1.19.13]
         os: ["ubuntu-24.04", "windows-latest", "macos-latest"]
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Get Sources
+        uses: actions/checkout@v6
+
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
-
-      - uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Get Sources
-        uses: actions/checkout@v4
+          cache: true
 
       - name: Get tag
-        id: tag
-        uses: dawidd6/action-get-tag@v1
+        run: |
+          gitTag="${GITHUB_REF#refs/tags/}"
+          echo "GIT_TAG=${gitTag#v}" >> "$GITHUB_ENV"
 
       - name: Get asset name
         id: asset
         run: |
-          gitTag=${{ steps.tag.outputs.tag }}
-          tag=${gitTag:1}
+          tag="${GIT_TAG}"
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             asset_name="idena-node-linux-${tag}"
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
@@ -49,14 +43,15 @@ jobs:
           else
             asset_name="idena-node-win-${tag}.exe"
           fi
-          echo "GIT_TAG=${tag}" >> $GITHUB_ENV
-          echo "ASSET_NAME=${asset_name}" >> $GITHUB_ENV
+          echo "ASSET_NAME=${asset_name}" >> "$GITHUB_ENV"
 
       - name: Test
         run: go test -v ./...
 
       - name: Build
-        run: go build -ldflags "-X main.version=${{ env.GIT_TAG }}" -o=builds/${{ env.ASSET_NAME }}
+        run: |
+          mkdir -p builds
+          go build -ldflags "-X main.version=${{ env.GIT_TAG }}" -o=builds/${{ env.ASSET_NAME }}
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -72,20 +67,19 @@ jobs:
         goos: [linux]
         goarch: [arm64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Get tag
-        id: tag
-        uses: dawidd6/action-get-tag@v1
+        run: |
+          gitTag="${GITHUB_REF#refs/tags/}"
+          echo "GIT_TAG=${gitTag#v}" >> "$GITHUB_ENV"
 
       - name: Get asset name
         id: asset
         run: |
-          gitTag=${{ steps.tag.outputs.tag }}
-          tag=${gitTag:1}
+          tag="${GIT_TAG}"
           asset_name="idena-node-linux-aarch64-${tag}"
-          echo "GIT_TAG=${tag}" >> $GITHUB_ENV
-          echo "ASSET_NAME=${asset_name}" >> $GITHUB_ENV
+          echo "ASSET_NAME=${asset_name}" >> "$GITHUB_ENV"
 
       - uses: wangyoucao577/go-release-action@v1.55
         with:

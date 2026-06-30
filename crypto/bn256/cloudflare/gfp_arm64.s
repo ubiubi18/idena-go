@@ -1,4 +1,5 @@
-// +build arm64,!generic
+//go:build arm64 && !generic && cloudflare_arm64_asm
+// +build arm64,!generic,cloudflare_arm64_asm
 
 #define storeBlock(a0,a1,a2,a3, r) \
 	MOVD a0,  0+r \
