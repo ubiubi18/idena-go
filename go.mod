@@ -278,6 +278,6 @@ require (
 
 replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.20211223100228-a33b117aa31e
 
-replace github.com/idena-network/idena-wasm-binding => ../idena-wasm-binding
+replace github.com/idena-network/idena-wasm-binding => github.com/ubiubi18/idena-wasm-binding v0.0.0-20260630171240-3a0f73c09929
 
 go 1.17
