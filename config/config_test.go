@@ -52,11 +52,11 @@ func TestMakeConfigRejectsServerCapableIpfsRoutingByDefault(t *testing.T) {
 
 	_, err := MakeConfig(ctx, func(cfg *Config) {})
 
-	require.ErrorContains(t, err, `IPFS routing mode "dht" is server-capable`)
+	require.ErrorContains(t, err, `IPFS routing mode "dht" is unsafe or ambiguous`)
 }
 
 func TestMakeConfigAllowsServerCapableIpfsRoutingWithOptIn(t *testing.T) {
-	t.Setenv(AllowIpfsDhtServerEnv, ipfsDhtServerEnvEnabled)
+	t.Setenv(AllowUnsafeIpfsRoutingEnv, ipfsUnsafeRoutingEnabled)
 	ctx := newTestContext(t)
 	require.NoError(t, ctx.Set(IpfsRoutingFlag.Name, IpfsRoutingDht))
 
@@ -69,9 +69,7 @@ func TestMakeConfigAllowsServerCapableIpfsRoutingWithOptIn(t *testing.T) {
 func TestValidateIpfsRoutingAllowsSafeKuboRoutingModes(t *testing.T) {
 	for _, routing := range []string{
 		"",
-		IpfsRoutingAuto,
 		IpfsRoutingAutoClient,
-		IpfsRoutingCustom,
 		IpfsRoutingDelegated,
 		IpfsRoutingDhtClient,
 		IpfsRoutingNone,
@@ -82,22 +80,32 @@ func TestValidateIpfsRoutingAllowsSafeKuboRoutingModes(t *testing.T) {
 
 func TestValidateIpfsRoutingRejectsServerCapableModesByDefault(t *testing.T) {
 	for _, routing := range []string{
+		IpfsRoutingAuto,
+		IpfsRoutingCustom,
 		IpfsRoutingDht,
 		IpfsRoutingDhtServer,
 	} {
-		require.ErrorContains(t, validateIpfsRouting(routing), "server-capable")
+		require.ErrorContains(t, validateIpfsRouting(routing), "unsafe or ambiguous")
 	}
 }
 
 func TestValidateIpfsRoutingAllowsServerCapableModesWithOptIn(t *testing.T) {
-	t.Setenv(AllowIpfsDhtServerEnv, ipfsDhtServerEnvEnabled)
+	t.Setenv(AllowUnsafeIpfsRoutingEnv, ipfsUnsafeRoutingEnabled)
 
 	for _, routing := range []string{
+		IpfsRoutingAuto,
+		IpfsRoutingCustom,
 		IpfsRoutingDht,
 		IpfsRoutingDhtServer,
 	} {
 		require.NoError(t, validateIpfsRouting(routing))
 	}
+}
+
+func TestValidateIpfsRoutingAllowsLegacyDhtServerOptIn(t *testing.T) {
+	t.Setenv(AllowIpfsDhtServerEnv, ipfsUnsafeRoutingEnabled)
+
+	require.NoError(t, validateIpfsRouting(IpfsRoutingDht))
 }
 
 func newTestContext(t *testing.T) *cli.Context {

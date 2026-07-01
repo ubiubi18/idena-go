@@ -19,13 +19,14 @@ import (
 )
 
 const (
-	datadirPrivateKey       = "nodekey" // Path within the datadir to the node's private key
-	apiKeyFileName          = "api.key"
-	LowPowerProfile         = "lowpower"
-	SharedNodeProfile       = "shared"
-	DefaultProfile          = "default"
-	AllowIpfsDhtServerEnv   = "IDENA_ALLOW_IPFS_DHT_SERVER"
-	ipfsDhtServerEnvEnabled = "1"
+	datadirPrivateKey         = "nodekey" // Path within the datadir to the node's private key
+	apiKeyFileName            = "api.key"
+	LowPowerProfile           = "lowpower"
+	SharedNodeProfile         = "shared"
+	DefaultProfile            = "default"
+	AllowUnsafeIpfsRoutingEnv = "IDENA_ALLOW_UNSAFE_IPFS_ROUTING"
+	AllowIpfsDhtServerEnv     = "IDENA_ALLOW_IPFS_DHT_SERVER"
+	ipfsUnsafeRoutingEnabled  = "1"
 )
 
 type Config struct {
@@ -365,21 +366,21 @@ func validateConfig(cfg *Config) error {
 
 func validateIpfsRouting(routing string) error {
 	switch routing {
-	case "", IpfsRoutingAuto, IpfsRoutingAutoClient, IpfsRoutingCustom, IpfsRoutingDelegated,
-		IpfsRoutingDhtClient, IpfsRoutingNone:
+	case "", IpfsRoutingAutoClient, IpfsRoutingDelegated, IpfsRoutingDhtClient, IpfsRoutingNone:
 		return nil
-	case IpfsRoutingDht, IpfsRoutingDhtServer:
-		if allowIpfsDhtServerMode() {
+	case IpfsRoutingAuto, IpfsRoutingCustom, IpfsRoutingDht, IpfsRoutingDhtServer:
+		if allowUnsafeIpfsRouting() {
 			return nil
 		}
-		return errors.Errorf("IPFS routing mode %q is server-capable and disabled by default; set %s=%s to enable it intentionally", routing, AllowIpfsDhtServerEnv, ipfsDhtServerEnvEnabled)
+		return errors.Errorf("IPFS routing mode %q is unsafe or ambiguous and disabled by default; set %s=%s to enable it intentionally", routing, AllowUnsafeIpfsRoutingEnv, ipfsUnsafeRoutingEnabled)
 	default:
-		return errors.Errorf("invalid IPFS routing mode %q; allowed values: auto, autoclient, custom, delegated, dhtclient, none; dht and dhtserver require %s=%s", routing, AllowIpfsDhtServerEnv, ipfsDhtServerEnvEnabled)
+		return errors.Errorf("invalid IPFS routing mode %q; allowed values: autoclient, delegated, dhtclient, none; auto, custom, dht, and dhtserver require %s=%s", routing, AllowUnsafeIpfsRoutingEnv, ipfsUnsafeRoutingEnabled)
 	}
 }
 
-func allowIpfsDhtServerMode() bool {
-	return strings.TrimSpace(os.Getenv(AllowIpfsDhtServerEnv)) == ipfsDhtServerEnvEnabled
+func allowUnsafeIpfsRouting() bool {
+	return strings.TrimSpace(os.Getenv(AllowUnsafeIpfsRoutingEnv)) == ipfsUnsafeRoutingEnabled ||
+		strings.TrimSpace(os.Getenv(AllowIpfsDhtServerEnv)) == ipfsUnsafeRoutingEnabled
 }
 
 func applyValidationFlags(ctx *cli.Context, cfg *Config) {
