@@ -46,17 +46,55 @@ func TestMakeConfigRejectsInvalidIpfsRouting(t *testing.T) {
 	require.ErrorContains(t, err, `invalid IPFS routing mode "bogus"`)
 }
 
-func TestValidateIpfsRoutingAllowsKuboRoutingModes(t *testing.T) {
+func TestMakeConfigRejectsServerCapableIpfsRoutingByDefault(t *testing.T) {
+	ctx := newTestContext(t)
+	require.NoError(t, ctx.Set(IpfsRoutingFlag.Name, IpfsRoutingDht))
+
+	_, err := MakeConfig(ctx, func(cfg *Config) {})
+
+	require.ErrorContains(t, err, `IPFS routing mode "dht" is server-capable`)
+}
+
+func TestMakeConfigAllowsServerCapableIpfsRoutingWithOptIn(t *testing.T) {
+	t.Setenv(AllowIpfsDhtServerEnv, ipfsDhtServerEnvEnabled)
+	ctx := newTestContext(t)
+	require.NoError(t, ctx.Set(IpfsRoutingFlag.Name, IpfsRoutingDht))
+
+	cfg, err := MakeConfig(ctx, func(cfg *Config) {})
+
+	require.NoError(t, err)
+	require.Equal(t, IpfsRoutingDht, cfg.IpfsConf.Routing)
+}
+
+func TestValidateIpfsRoutingAllowsSafeKuboRoutingModes(t *testing.T) {
 	for _, routing := range []string{
 		"",
 		IpfsRoutingAuto,
 		IpfsRoutingAutoClient,
 		IpfsRoutingCustom,
 		IpfsRoutingDelegated,
-		IpfsRoutingDht,
 		IpfsRoutingDhtClient,
-		IpfsRoutingDhtServer,
 		IpfsRoutingNone,
+	} {
+		require.NoError(t, validateIpfsRouting(routing))
+	}
+}
+
+func TestValidateIpfsRoutingRejectsServerCapableModesByDefault(t *testing.T) {
+	for _, routing := range []string{
+		IpfsRoutingDht,
+		IpfsRoutingDhtServer,
+	} {
+		require.ErrorContains(t, validateIpfsRouting(routing), "server-capable")
+	}
+}
+
+func TestValidateIpfsRoutingAllowsServerCapableModesWithOptIn(t *testing.T) {
+	t.Setenv(AllowIpfsDhtServerEnv, ipfsDhtServerEnvEnabled)
+
+	for _, routing := range []string{
+		IpfsRoutingDht,
+		IpfsRoutingDhtServer,
 	} {
 		require.NoError(t, validateIpfsRouting(routing))
 	}

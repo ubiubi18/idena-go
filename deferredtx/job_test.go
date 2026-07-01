@@ -13,7 +13,6 @@ import (
 	"github.com/idena-network/idena-go/vm/wasm"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"os"
 	"testing"
 )
 
@@ -70,10 +69,10 @@ func TestJob_tryLater(t *testing.T) {
 	fakeVmError = embedded.NewContractError("", true)
 	chain, appState, _, _ := blockchain.NewTestBlockchain(false, nil)
 	defer chain.SecStore().Destroy()
-	os.RemoveAll("test")
+	datadir := t.TempDir()
 
 	txPool := &fakeTxPool{}
-	job, _ := NewJob(chain.Bus(), "test", appState, chain.Blockchain, txPool, nil, chain.SecStore(), func(appState *appstate.AppState, blockHeaderProvider wasm.BlockHeaderProvider, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) vm.VM {
+	job, _ := NewJob(chain.Bus(), datadir, appState, chain.Blockchain, txPool, nil, chain.SecStore(), func(appState *appstate.AppState, blockHeaderProvider wasm.BlockHeaderProvider, block *types.Header, statsCollector collector.StatsCollector, cfg *config.Config) vm.VM {
 		return &fakeVm{}
 	})
 	coinbase := chain.SecStore().GetAddress()

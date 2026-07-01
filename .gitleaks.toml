@@ -1,0 +1,23 @@
+title = "idena-go gitleaks config"
+
+[[allowlists]]
+description = "Public Idena IPFS swarm key constants"
+condition = "AND"
+paths = [
+  '''config/flags\.go''',
+  '''ipfs/ipfs_test\.go''',
+]
+regexes = [
+  '''DefaultSwarmKey\s*=\s*"[0-9a-f]{64}"''',
+  '''SwarmKey:\s*"[0-9a-f]{64}"''',
+]
+
+[[allowlists]]
+description = "Deterministic VRF test vector private key"
+condition = "AND"
+paths = [
+  '''crypto/vrf/p256/p256_test\.go''',
+]
+regexes = [
+  '''privKey\s*=\s*`[0-9a-f]{64}`''',
+]

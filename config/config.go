@@ -19,11 +19,13 @@ import (
 )
 
 const (
-	datadirPrivateKey = "nodekey" // Path within the datadir to the node's private key
-	apiKeyFileName    = "api.key"
-	LowPowerProfile   = "lowpower"
-	SharedNodeProfile = "shared"
-	DefaultProfile    = "default"
+	datadirPrivateKey       = "nodekey" // Path within the datadir to the node's private key
+	apiKeyFileName          = "api.key"
+	LowPowerProfile         = "lowpower"
+	SharedNodeProfile       = "shared"
+	DefaultProfile          = "default"
+	AllowIpfsDhtServerEnv   = "IDENA_ALLOW_IPFS_DHT_SERVER"
+	ipfsDhtServerEnvEnabled = "1"
 )
 
 type Config struct {
@@ -364,11 +366,20 @@ func validateConfig(cfg *Config) error {
 func validateIpfsRouting(routing string) error {
 	switch routing {
 	case "", IpfsRoutingAuto, IpfsRoutingAutoClient, IpfsRoutingCustom, IpfsRoutingDelegated,
-		IpfsRoutingDht, IpfsRoutingDhtClient, IpfsRoutingDhtServer, IpfsRoutingNone:
+		IpfsRoutingDhtClient, IpfsRoutingNone:
 		return nil
+	case IpfsRoutingDht, IpfsRoutingDhtServer:
+		if allowIpfsDhtServerMode() {
+			return nil
+		}
+		return errors.Errorf("IPFS routing mode %q is server-capable and disabled by default; set %s=%s to enable it intentionally", routing, AllowIpfsDhtServerEnv, ipfsDhtServerEnvEnabled)
 	default:
-		return errors.Errorf("invalid IPFS routing mode %q; allowed values: auto, autoclient, custom, delegated, dht, dhtclient, dhtserver, none", routing)
+		return errors.Errorf("invalid IPFS routing mode %q; allowed values: auto, autoclient, custom, delegated, dhtclient, none; dht and dhtserver require %s=%s", routing, AllowIpfsDhtServerEnv, ipfsDhtServerEnvEnabled)
 	}
+}
+
+func allowIpfsDhtServerMode() bool {
+	return strings.TrimSpace(os.Getenv(AllowIpfsDhtServerEnv)) == ipfsDhtServerEnvEnabled
 }
 
 func applyValidationFlags(ctx *cli.Context, cfg *Config) {

@@ -80,7 +80,7 @@ func TestTxPool_addDeferredTx(t *testing.T) {
 }
 
 func TestTxPool_ResetTo(t *testing.T) {
-	pool := getPool()
+	pool := getPool(t.TempDir())
 
 	keys := make([]*ecdsa.PrivateKey, 0)
 
@@ -178,10 +178,10 @@ func TestTxPool_ResetTo(t *testing.T) {
 	require.Equal(t, 0, len(pool.pendingTxs))
 }
 
-func getPool() *TxPool {
+func getPool(datadir string) *TxPool {
 	bus := eventbus.New()
 	appState, _ := appstate.NewAppState(db.NewMemDB(), bus)
-	return NewTxPool(appState, bus, &config.Config{Mempool: config.GetDefaultMempoolConfig(), Consensus: config.GetDefaultConsensusConfig()}, collector.NewStatsCollector())
+	return NewTxPool(appState, bus, &config.Config{DataDir: datadir, Mempool: config.GetDefaultMempoolConfig(), Consensus: config.GetDefaultConsensusConfig()}, collector.NewStatsCollector())
 }
 
 func TestSortedTxs_Remove(t *testing.T) {
@@ -275,7 +275,8 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 
 	txKeeperPersistInterval = time.Millisecond * 200
 
-	pool := getPool()
+	datadir := t.TempDir()
+	pool := getPool(datadir)
 
 	keys := make([]*ecdsa.PrivateKey, 0)
 
@@ -336,7 +337,7 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	prevPool.txKeeper.persist()
 	prevPool.txKeeper.mutex.RUnlock()
 
-	pool = getPool()
+	pool = getPool(datadir)
 	pool.appState = prevPool.appState
 	pool.Initialize(&types.Header{
 		EmptyBlockHeader: &types.EmptyBlockHeader{
@@ -374,7 +375,8 @@ func TestTxPool_RecoverValidationTxs_OnAfterLongSession(t *testing.T) {
 
 	txKeeperPersistInterval = time.Millisecond * 200
 
-	pool := getPool()
+	datadir := t.TempDir()
+	pool := getPool(datadir)
 
 	key, _ := crypto.GenerateKey()
 	address := crypto.PubkeyToAddress(key.PublicKey)
@@ -414,7 +416,7 @@ func TestTxPool_RecoverValidationTxs_OnAfterLongSession(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 500)
 	prevPool := pool
-	pool = getPool()
+	pool = getPool(datadir)
 	pool.appState = prevPool.appState
 	pool.appState.State.SetValidationPeriod(state.AfterLongSessionPeriod)
 
@@ -434,7 +436,7 @@ func TestTxPool_RecoverValidationTxs_OnAfterLongSession(t *testing.T) {
 	pool.appState.State.SetState(address2, state.Candidate)
 	pool.appState.Commit(nil)
 
-	pool = getPool()
+	pool = getPool(datadir)
 	pool.appState = prevPool.appState
 
 	pool.Initialize(&types.Header{

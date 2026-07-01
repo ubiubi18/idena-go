@@ -89,7 +89,7 @@ var (
 	}
 	IpfsRoutingFlag = cli.StringFlag{
 		Name:  "ipfsrouting",
-		Usage: "Ipfs routing mode (dhtclient or dht)",
+		Usage: "Ipfs routing mode (default dhtclient; dht and dhtserver require IDENA_ALLOW_IPFS_DHT_SERVER=1)",
 	}
 	NoDiscoveryFlag = cli.BoolFlag{
 		Name:  "nodiscovery",
