@@ -36,15 +36,15 @@ require (
 	github.com/rjeczalik/notify v0.9.2
 	github.com/rs/cors v1.8.2
 	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.11.1
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 	github.com/tendermint/tm-db v0.6.7
 	github.com/urfave/cli v1.22.5
 	github.com/whyrusleeping/go-logging v0.0.1
 	github.com/willf/bloom v2.0.3+incompatible
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
-	golang.org/x/net v0.0.0-20220630215102-69896b714898
-	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
+	golang.org/x/crypto v0.23.0
+	golang.org/x/net v0.25.0
+	golang.org/x/sys v0.30.0
 	google.golang.org/protobuf v1.33.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
@@ -263,10 +263,10 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.21.0 // indirect
 	go4.org v0.0.0-20200411211856-f5505b9728dd // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/tools v0.1.11 // indirect
+	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	google.golang.org/genproto v0.0.0-20211118181313-81c1377c94b1 // indirect
 	google.golang.org/grpc v1.47.0 // indirect
@@ -278,6 +278,6 @@ require (
 
 replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.20211223100228-a33b117aa31e
 
-replace github.com/idena-network/idena-wasm-binding => github.com/ubiubi18/idena-wasm-binding v0.0.0-20260630171240-3a0f73c09929
+replace github.com/idena-network/idena-wasm-binding => github.com/ubiubi18/idena-wasm-binding v0.0.0-20260701062810-01485c7e3dc5
 
 go 1.17
