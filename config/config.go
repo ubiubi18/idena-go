@@ -213,7 +213,7 @@ func applyProfile(ctx *cli.Context, cfg *Config) {
 		cfg.IpfsConf.ReproviderInterval = "12h"
 	}
 	if cfg.IpfsConf.Routing == "" {
-		cfg.IpfsConf.Routing = "dht"
+		cfg.IpfsConf.Routing = DefaultIpfsRouting
 	}
 }
 
@@ -336,6 +336,9 @@ func applyIpfsFlags(ctx *cli.Context, cfg *Config) {
 	}
 	if ctx.IsSet(IpfsPortStaticFlag.Name) {
 		cfg.IpfsConf.StaticPort = ctx.Bool(IpfsPortStaticFlag.Name)
+	}
+	if ctx.IsSet(IpfsRoutingFlag.Name) {
+		cfg.IpfsConf.Routing = ctx.String(IpfsRoutingFlag.Name)
 	}
 	if ctx.IsSet(IpfsBootNodeFlag.Name) {
 		cfg.IpfsConf.BootNodes = []string{ctx.String(IpfsBootNodeFlag.Name)}

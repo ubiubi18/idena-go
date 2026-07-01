@@ -10,6 +10,7 @@ const (
 	DefaultRpcPortBuiltInNode = 9119
 	DefaultIpfsDataDir        = "ipfs"
 	DefaultIpfsPort           = 40405
+	DefaultIpfsRouting        = "dhtclient"
 	DefaultGodAddress         = "0x4d60dc6a2cba8c3ef1ba5e1eba5c12c54cee6b61"
 	DefaultCeremonyTime       = int64(1567171800)
 	DefaultSwarmKey           = "00d6f96bb2b02a7308ad87938d6139a974b555cc029ce416641a60c46db2f531"
@@ -76,6 +77,10 @@ var (
 	IpfsPortFlag = cli.IntFlag{
 		Name:  "ipfsport",
 		Usage: "Ipfs port",
+	}
+	IpfsRoutingFlag = cli.StringFlag{
+		Name:  "ipfsrouting",
+		Usage: "Ipfs routing mode (dhtclient or dht)",
 	}
 	NoDiscoveryFlag = cli.BoolFlag{
 		Name:  "nodiscovery",

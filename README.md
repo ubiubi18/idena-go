@@ -25,6 +25,7 @@ To connect to idena `experimental mainnet` network run executable without parame
 * `--rpcport` RPC listening port (default `9009`)
 * `--ipfsport` IPFS P2P port (default `40405`)
 * `--ipfsportstatic` Prevent changing IPFS port (default `false`)
+* `--ipfsrouting` IPFS routing mode (default `dhtclient`; use `dht` only when this node should serve the IPFS DHT)
 * `--ipfsbootnode` Set custom bootstrap node
 * `--fast` Use fast sync (default `true`)
 * `--verbosity` Log verbosity (default `3` - `Info`)
