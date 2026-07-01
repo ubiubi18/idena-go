@@ -175,6 +175,12 @@ func MakeMobileConfig(path string, cfg string) (*Config, error) {
 		log.Info("using default config")
 	}
 
+	if conf.IpfsConf != nil && conf.IpfsConf.Routing == "" {
+		conf.IpfsConf.Routing = DefaultIpfsRouting
+	}
+	if err := validateConfig(conf); err != nil {
+		return nil, err
+	}
 	return conf, nil
 }
 
@@ -188,6 +194,9 @@ func MakeConfig(ctx *cli.Context, cfgTransform func(cfg *Config)) (*Config, erro
 	}
 	cfgTransform(cfg)
 	applyFlags(ctx, cfg)
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }
 
@@ -342,6 +351,23 @@ func applyIpfsFlags(ctx *cli.Context, cfg *Config) {
 	}
 	if ctx.IsSet(IpfsBootNodeFlag.Name) {
 		cfg.IpfsConf.BootNodes = []string{ctx.String(IpfsBootNodeFlag.Name)}
+	}
+}
+
+func validateConfig(cfg *Config) error {
+	if cfg.IpfsConf == nil {
+		return nil
+	}
+	return validateIpfsRouting(cfg.IpfsConf.Routing)
+}
+
+func validateIpfsRouting(routing string) error {
+	switch routing {
+	case "", IpfsRoutingAuto, IpfsRoutingAutoClient, IpfsRoutingCustom, IpfsRoutingDelegated,
+		IpfsRoutingDht, IpfsRoutingDhtClient, IpfsRoutingDhtServer, IpfsRoutingNone:
+		return nil
+	default:
+		return errors.Errorf("invalid IPFS routing mode %q; allowed values: auto, autoclient, custom, delegated, dht, dhtclient, dhtserver, none", routing)
 	}
 }
 

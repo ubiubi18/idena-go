@@ -24,6 +24,15 @@ const (
 
 	DefaultBurntTxRange = 4320
 
+	IpfsRoutingAuto       = "auto"
+	IpfsRoutingAutoClient = "autoclient"
+	IpfsRoutingCustom     = "custom"
+	IpfsRoutingDelegated  = "delegated"
+	IpfsRoutingDht        = "dht"
+	IpfsRoutingDhtClient  = "dhtclient"
+	IpfsRoutingDhtServer  = "dhtserver"
+	IpfsRoutingNone       = "none"
+
 	LowPowerMaxInboundOwnShardPeers     = 3
 	LowPowerMaxOutboundOwnShardPeers    = 2
 	LowPowerMaxInboundNotOwnShardPeers  = 1

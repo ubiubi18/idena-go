@@ -31,10 +31,35 @@ func TestApplyIpfsFlagsOverridesRouting(t *testing.T) {
 	cfg := getDefaultConfig(DefaultDataDir)
 	ctx := newTestContext(t)
 
-	require.NoError(t, ctx.Set(IpfsRoutingFlag.Name, "dht"))
+	require.NoError(t, ctx.Set(IpfsRoutingFlag.Name, IpfsRoutingDht))
 	applyIpfsFlags(ctx, cfg)
 
-	require.Equal(t, "dht", cfg.IpfsConf.Routing)
+	require.Equal(t, IpfsRoutingDht, cfg.IpfsConf.Routing)
+}
+
+func TestMakeConfigRejectsInvalidIpfsRouting(t *testing.T) {
+	ctx := newTestContext(t)
+	require.NoError(t, ctx.Set(IpfsRoutingFlag.Name, "bogus"))
+
+	_, err := MakeConfig(ctx, func(cfg *Config) {})
+
+	require.ErrorContains(t, err, `invalid IPFS routing mode "bogus"`)
+}
+
+func TestValidateIpfsRoutingAllowsKuboRoutingModes(t *testing.T) {
+	for _, routing := range []string{
+		"",
+		IpfsRoutingAuto,
+		IpfsRoutingAutoClient,
+		IpfsRoutingCustom,
+		IpfsRoutingDelegated,
+		IpfsRoutingDht,
+		IpfsRoutingDhtClient,
+		IpfsRoutingDhtServer,
+		IpfsRoutingNone,
+	} {
+		require.NoError(t, validateIpfsRouting(routing))
+	}
 }
 
 func newTestContext(t *testing.T) *cli.Context {
@@ -42,6 +67,8 @@ func newTestContext(t *testing.T) *cli.Context {
 
 	app := cli.NewApp()
 	app.Flags = []cli.Flag{
+		CfgFileFlag,
+		DataDirFlag,
 		IpfsRoutingFlag,
 		ProfileFlag,
 	}
