@@ -1,17 +1,17 @@
 module github.com/idena-network/idena-go
 
 require (
-	github.com/RoaringBitmap/roaring v0.9.4
-	github.com/aristanetworks/goarista v0.0.0-20190704150520-f44d68189fd7
-	github.com/awnumar/memguard v0.22.2
+	github.com/RoaringBitmap/roaring v1.9.4
+	github.com/aristanetworks/goarista v0.0.0-20251201112602-a373d7c9f0d9
+	github.com/awnumar/memguard v0.23.0
 	github.com/cespare/cp v1.1.1
-	github.com/coreos/go-semver v0.3.0
-	github.com/cosmos/iavl v0.15.3
+	github.com/coreos/go-semver v0.3.1
+	github.com/cosmos/iavl v1.3.6
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/deckarep/golang-set v1.7.1
+	github.com/deckarep/golang-set v1.8.0
 	github.com/go-stack/stack v1.8.1
 	github.com/golang/protobuf v1.5.4
-	github.com/google/tink/go v0.0.0-20200401233402-a389e601043a
+	github.com/google/tink/go v1.7.0
 	github.com/ipfs/go-cid v0.6.1
 	github.com/ipfs/kubo v0.42.0
 	github.com/klauspost/compress v1.18.7
@@ -23,10 +23,10 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
-	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
-	github.com/rjeczalik/notify v0.9.2
+	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9
+	github.com/rjeczalik/notify v0.9.3
 	github.com/rs/cors v1.11.1
-	github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc
+	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d
 	github.com/tendermint/tm-db v0.6.7
@@ -57,10 +57,10 @@ require (
 	github.com/RaduBerinde/btreemap v0.0.0-20250419174037-3d62b7205d54 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/alexbrainman/goissue34681 v0.0.0-20191006012335-3fc7a47baff5 // indirect
-	github.com/awnumar/memcall v0.0.0-20191004114545-73db50fd9f80 // indirect
+	github.com/awnumar/memcall v0.4.0 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.2.0 // indirect
+	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/caddyserver/certmagic v0.25.3 // indirect
 	github.com/caddyserver/zerossl v0.1.5 // indirect
@@ -102,7 +102,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/snappy v0.0.5-0.20231225225746-43d5d4cd4e0e // indirect
+	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/btree v1.0.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/uuid v1.6.0 // indirect
