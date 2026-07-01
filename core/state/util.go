@@ -1,19 +1,19 @@
 package state
 
 import (
-	"bytes"
+	"archive/tar"
+	"io"
+	"io/ioutil"
+	"strconv"
+
 	"github.com/cosmos/iavl"
 	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/database"
 	models "github.com/idena-network/idena-go/protobuf"
-	"github.com/mholt/archiver/v3"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-db"
-	"io"
-	"io/ioutil"
-	"strconv"
 )
 
 const (
@@ -42,15 +42,7 @@ func WriteTreeTo2(sourceDb dbm.DB, height uint64, to io.Writer) (common.Hash, er
 		return common.Hash{}, err
 	}
 
-	tar := archiver.Tar{
-		MkdirAll:               true,
-		OverwriteExisting:      false,
-		ImplicitTopLevelFolder: false,
-	}
-
-	if err := tar.Create(to); err != nil {
-		return common.Hash{}, err
-	}
+	tw := tar.NewWriter(to)
 
 	exporter := tree.GetImmutable().Exporter()
 	defer exporter.Close()
@@ -58,18 +50,16 @@ func WriteTreeTo2(sourceDb dbm.DB, height uint64, to io.Writer) (common.Hash, er
 	i := 0
 
 	writeBlock := func(sb *models.ProtoSnapshotNodes, name string) error {
-
 		data, _ := proto.Marshal(sb)
-
-		return tar.Write(archiver.File{
-			FileInfo: archiver.FileInfo{
-				CustomName: name,
-				FileInfo: &fakeFileInfo{
-					size: int64(len(data)),
-				},
-			},
-			ReadCloser: &readCloser{r: bytes.NewReader(data)},
-		})
+		if err := tw.WriteHeader(&tar.Header{
+			Name: name,
+			Mode: 0600,
+			Size: int64(len(data)),
+		}); err != nil {
+			return err
+		}
+		_, err := tw.Write(data)
+		return err
 	}
 
 	for {
@@ -97,19 +87,11 @@ func WriteTreeTo2(sourceDb dbm.DB, height uint64, to io.Writer) (common.Hash, er
 			return common.Hash{}, err
 		}
 	}
-	return tree.WorkingHash(), tar.Close()
+	return tree.WorkingHash(), tw.Close()
 }
 
 func ReadTreeFrom2(pdb *dbm.PrefixDB, height uint64, root common.Hash, from io.Reader) error {
-	tar := archiver.Tar{
-		MkdirAll:               true,
-		OverwriteExisting:      false,
-		ImplicitTopLevelFolder: false,
-	}
-
-	if err := tar.Open(from, 0); err != nil {
-		return err
-	}
+	tr := tar.NewReader(from)
 
 	tree := NewMutableTree(pdb)
 	importer, err := tree.Importer(int64(height))
@@ -118,8 +100,19 @@ func ReadTreeFrom2(pdb *dbm.PrefixDB, height uint64, root common.Hash, from io.R
 	}
 	defer importer.Close()
 
-	for file, err := tar.Read(); err == nil; file, err = tar.Read() {
-		if data, err := ioutil.ReadAll(file); err != nil {
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			common.ClearDb(pdb)
+			return err
+		}
+		if header.Typeflag == tar.TypeDir {
+			continue
+		}
+		if data, err := ioutil.ReadAll(tr); err != nil {
 			common.ClearDb(pdb)
 			return err
 		} else {
