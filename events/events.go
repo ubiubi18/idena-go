@@ -4,9 +4,9 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
-	iface "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/libp2p/go-libp2p-core"
+	iface "github.com/ipfs/kubo/core/coreiface"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core"
 	"time"
 )
 

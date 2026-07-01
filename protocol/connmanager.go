@@ -5,11 +5,10 @@ import (
 	"github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/config"
-	core "github.com/libp2p/go-libp2p-core"
-	"github.com/libp2p/go-libp2p-core/helpers"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
+	core "github.com/libp2p/go-libp2p/core"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-yamux"
 	"github.com/pkg/errors"
 	"math/rand"
@@ -77,7 +76,7 @@ func (m *ConnManager) CanConnect(id peer.ID) bool {
 		return false
 	}
 	for _, p := range protos {
-		if strings.Contains(p, IdenaProtocolPath) {
+		if strings.Contains(string(p), IdenaProtocolPath) {
 			return true
 		}
 	}
@@ -176,9 +175,9 @@ func (m *ConnManager) DialRandomPeer() (network.Stream, error) {
 
 func (m *ConnManager) findOrOpenStream(conn network.Conn) (network.Stream, error) {
 	streams := conn.GetStreams()
-	matcher, _ := helpers.MultistreamSemverMatcher(IdenaProtocol)
+	matcher, _ := multistreamSemverMatcher(IdenaProtocol)
 	for _, s := range streams {
-		if matcher(string(s.Protocol())) {
+		if matcher(s.Protocol()) {
 			return s, nil
 		}
 	}
@@ -197,7 +196,7 @@ func (m *ConnManager) newStream(peerID peer.ID) (network.Stream, error) {
 
 	var idenaProtocol protocol.ID
 	for _, p := range protos {
-		if strings.Contains(p, IdenaProtocolPath) {
+		if strings.Contains(string(p), IdenaProtocolPath) {
 			idenaProtocol = protocol.ID(p)
 			break
 		}

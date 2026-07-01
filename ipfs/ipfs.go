@@ -11,25 +11,25 @@ import (
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/events"
 	"github.com/idena-network/idena-go/log"
-	"github.com/ipfs/go-blockservice"
+	"github.com/ipfs/boxo/blockservice"
+	"github.com/ipfs/boxo/files"
+	dag "github.com/ipfs/boxo/ipld/merkledag"
+	dagtest "github.com/ipfs/boxo/ipld/merkledag/test"
+	ft "github.com/ipfs/boxo/ipld/unixfs"
+	"github.com/ipfs/boxo/mfs"
+	"github.com/ipfs/boxo/path"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-ipfs-files"
-	dag "github.com/ipfs/go-merkledag"
-	dagtest "github.com/ipfs/go-merkledag/test"
-	"github.com/ipfs/go-mfs"
-	ft "github.com/ipfs/go-unixfs"
-	"github.com/ipfs/interface-go-ipfs-core/options"
-	"github.com/ipfs/interface-go-ipfs-core/path"
 	ipfsConf "github.com/ipfs/kubo/config"
 	serialize "github.com/ipfs/kubo/config/serialize"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
+	"github.com/ipfs/kubo/core/coreiface/options"
 	"github.com/ipfs/kubo/core/corerepo"
 	"github.com/ipfs/kubo/core/coreunix"
 	"github.com/ipfs/kubo/plugin/loader"
 	"github.com/ipfs/kubo/repo/fsrepo"
-	core2 "github.com/libp2p/go-libp2p-core"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	libp2pcore "github.com/libp2p/go-libp2p/core"
 	"github.com/multiformats/go-multihash"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -87,7 +87,7 @@ type Proxy interface {
 	Port() int
 	PeerId() string
 	AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (cid.Cid, error)
-	Host() core2.Host
+	Host() libp2pcore.Host
 	ShouldPin(dataType DataType) bool
 	GetWithSizeLimit(key []byte, dataType DataType, size int64) ([]byte, error)
 	PubSub() *pubsub.PubSub
@@ -108,7 +108,7 @@ type ipfsProxy struct {
 	gcMutex              sync.RWMutex
 }
 
-func (p *ipfsProxy) Host() core2.Host {
+func (p *ipfsProxy) Host() libp2pcore.Host {
 	return p.node.PeerHost
 }
 
@@ -132,14 +132,12 @@ func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 		return nil, err
 	}
 
-	nilNode, err := core.NewNode(context.Background(), &core.BuildCfg{
-		NilRepo: true,
-	})
+	nilNode, err := core.NewNode(context.Background(), &core.BuildCfg{})
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Info("Ipfs initialized", "peerId", node.PeerHost.ID().Pretty())
+	logger.Info("Ipfs initialized", "peerId", node.PeerHost.ID().String())
 
 	c := cache.New(2*time.Minute, 5*time.Minute)
 	p := &ipfsProxy{
@@ -302,11 +300,11 @@ func (p *ipfsProxy) Add(data []byte, pin bool) (cid.Cid, error) {
 	file := files.NewBytesFile(data)
 	defer file.Close()
 
-	var ipfsPath path.Resolved
+	var ipfsPath path.ImmutablePath
 	var err error
 	for num := 5; num > 0; num-- {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-		ipfsPath, err = api.Unixfs().Add(ctx, file, options.Unixfs.Pin(pin), options.Unixfs.CidVersion(1))
+		ipfsPath, err = api.Unixfs().Add(ctx, file, options.Unixfs.Pin(pin, ""), options.Unixfs.CidVersion(1))
 		select {
 		case <-ctx.Done():
 			err = errors.New("timeout while writing data to ipfs")
@@ -327,8 +325,8 @@ func (p *ipfsProxy) Add(data []byte, pin bool) (cid.Cid, error) {
 		return cid.Cid{}, err
 	}
 
-	p.log.Debug("Add ipfs data", "cid", ipfsPath.Cid().String())
-	return ipfsPath.Cid(), nil
+	p.log.Debug("Add ipfs data", "cid", ipfsPath.RootCid().String())
+	return ipfsPath.RootCid(), nil
 }
 
 func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) (cid.Cid, error) {
@@ -345,7 +343,7 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 
 	file, _ := files.NewReaderPathFile(absPath, data, fi)
 	defer file.Close()
-	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Pin(true), options.Unixfs.Nocopy(true), options.Unixfs.CidVersion(1))
+	path, err := api.Unixfs().Add(ctx, file, options.Unixfs.Pin(true, ""), options.Unixfs.Nocopy(true), options.Unixfs.CidVersion(1))
 	select {
 	case <-ctx.Done():
 		err = errors.New("timeout while writing data to ipfs from reader")
@@ -355,8 +353,8 @@ func (p *ipfsProxy) AddFile(absPath string, data io.ReadCloser, fi os.FileInfo) 
 	if err != nil {
 		return cid.Cid{}, err
 	}
-	p.log.Debug("Add ipfs data from reader", "cid", path.Cid().String())
-	return path.Cid(), nil
+	p.log.Debug("Add ipfs data from reader", "cid", path.RootCid().String())
+	return path.RootCid(), nil
 }
 
 func (p *ipfsProxy) Get(key []byte, dataType DataType) ([]byte, error) {
@@ -370,7 +368,7 @@ func (p *ipfsProxy) Get(key []byte, dataType DataType) ([]byte, error) {
 	if c == EmptyCid {
 		return []byte{}, nil
 	}
-	return p.get(path.IpfsPath(c), dataType, 0)
+	return p.get(path.FromCid(c), dataType, 0)
 }
 
 func (p *ipfsProxy) GetWithSizeLimit(key []byte, dataType DataType, maxSize int64) ([]byte, error) {
@@ -385,7 +383,7 @@ func (p *ipfsProxy) GetWithSizeLimit(key []byte, dataType DataType, maxSize int6
 		return []byte{}, nil
 	}
 
-	return p.get(path.IpfsPath(c), dataType, maxSize)
+	return p.get(path.FromCid(c), dataType, maxSize)
 }
 
 func (p *ipfsProxy) get(path path.Path, dataType DataType, maxSize int64) ([]byte, error) {
@@ -462,7 +460,7 @@ func (p *ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoad
 
 	api, _ := coreapi.NewCoreAPI(p.node)
 
-	f, err := api.Unixfs().Get(ctx, path.IpfsPath(c))
+	f, err := api.Unixfs().Get(ctx, path.FromCid(c))
 	select {
 	case <-ctx.Done():
 		return errors.New("ipfs load: context canceled")
@@ -496,7 +494,7 @@ func (p *ipfsProxy) Pin(key []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	err = api.Pin().Add(ctx, path.IpfsPath(c))
+	err = api.Pin().Add(ctx, path.FromCid(c))
 
 	select {
 	case <-ctx.Done():
@@ -524,7 +522,7 @@ func (p *ipfsProxy) Unpin(key []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	err = api.Pin().Rm(ctx, path.IpfsPath(c))
+	err = api.Pin().Rm(ctx, path.FromCid(c))
 
 	select {
 	case <-ctx.Done():
@@ -541,7 +539,7 @@ func (p *ipfsProxy) Port() int {
 }
 
 func (p *ipfsProxy) PeerId() string {
-	return p.node.PeerHost.ID().Pretty()
+	return p.node.PeerHost.ID().String()
 }
 
 func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
@@ -582,7 +580,7 @@ func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 	emptyDirNode := ft.EmptyDirNode()
 	// Use the same prefix for the "empty" MFS root as for the file adder.
 	emptyDirNode.SetCidBuilder(fileAdder.CidBuilder)
-	mr, err := mfs.NewRoot(ctx, md, emptyDirNode, nil)
+	mr, err := mfs.NewRoot(ctx, md, emptyDirNode, nil, nil)
 	if err != nil {
 		return EmptyCid, err
 	}
@@ -612,17 +610,24 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		ipfsConfig.Bootstrap = ipfsConf.BootstrapPeerStrings(bps)
 		ipfsConfig.Swarm.DisableBandwidthMetrics = true
 		ipfsConfig.Routing.Type = ipfsConf.NewOptionalString(cfg.Routing)
-		ipfsConfig.Swarm.ConnMgr.GracePeriod = cfg.GracePeriod
-		ipfsConfig.Swarm.ConnMgr.LowWater = cfg.LowWater
-		ipfsConfig.Swarm.ConnMgr.HighWater = cfg.HighWater
-		ipfsConfig.Reprovider.Interval = cfg.ReproviderInterval
-		ipfsConfig.Reprovider.Strategy = "pinned"
+		gracePeriod, err := optionalIpfsDuration(cfg.GracePeriod)
+		if err != nil {
+			return err
+		}
+		reproviderInterval, err := optionalIpfsDuration(cfg.ReproviderInterval)
+		if err != nil {
+			return err
+		}
+
+		ipfsConfig.Swarm.ConnMgr.GracePeriod = gracePeriod
+		ipfsConfig.Swarm.ConnMgr.LowWater = ipfsConf.NewOptionalInteger(int64(cfg.LowWater))
+		ipfsConfig.Swarm.ConnMgr.HighWater = ipfsConf.NewOptionalInteger(int64(cfg.HighWater))
+		ipfsConfig.Reprovider.Interval = reproviderInterval
+		ipfsConfig.Reprovider.Strategy = ipfsConf.NewOptionalString("pinned")
 		ipfsConfig.Swarm.Transports.Security.Noise = ipfsConf.Disabled
 
 		ipfsConfig.Swarm.RelayClient.Enabled = ipfsConf.True
 		ipfsConfig.Swarm.EnableHolePunching = ipfsConf.True
-		ipfsConfig.Swarm.EnableAutoRelay = false
-
 		if cfg.Profile != "" {
 			transformer, ok := ipfsConf.Profiles[cfg.Profile]
 			if !ok {
@@ -758,7 +763,7 @@ func (i *memoryIpfs) ShouldPin(dataType DataType) bool {
 	return true
 }
 
-func (i *memoryIpfs) Host() core2.Host {
+func (i *memoryIpfs) Host() libp2pcore.Host {
 	panic("implement me")
 }
 
@@ -848,4 +853,19 @@ func configAt(repoPath string) (*ipfsConf.Config, error) {
 
 func (i *memoryIpfs) GC() (ctx context.Context, cancel context.CancelFunc) {
 	panic("implement me")
+}
+
+func optionalIpfsDuration(value string) (*ipfsConf.OptionalDuration, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	if value == "0" {
+		return ipfsConf.NewOptionalDuration(0), nil
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return nil, errors.Wrapf(err, "invalid IPFS duration %q", value)
+	}
+	return ipfsConf.NewOptionalDuration(duration), nil
 }

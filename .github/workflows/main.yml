@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.19.13']
+        go-version: ['1.26.4']
 
     steps:
       - name: Get Sources

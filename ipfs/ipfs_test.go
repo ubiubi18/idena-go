@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
 	"github.com/stretchr/testify/require"
+	"os"
 	"testing"
 )
 
@@ -13,11 +14,15 @@ var proxy Proxy
 
 func init() {
 	var err error
+	dataDir, err := os.MkdirTemp("", "idena-ipfs-test-*")
+	if err != nil {
+		panic(err)
+	}
 	proxy, err = NewIpfsProxy(&config.IpfsConfig{
 		SwarmKey:    "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530",
 		BootNodes:   []string{},
 		IpfsPort:    4012,
-		DataDir:     "./datadir-ipfs",
+		DataDir:     dataDir,
 		GracePeriod: "20s",
 	}, eventbus.New())
 	if err != nil {

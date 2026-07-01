@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	dbm "github.com/tendermint/tm-db"
 	"math/big"
+	"math/rand"
 	"testing"
 	"time"
 )
@@ -1659,11 +1660,12 @@ func TestBalance_shards_reducing(t *testing.T) {
 	verifiedByShard := map[common.ShardId]int{}
 	suspendedByShard := map[common.ShardId]int{}
 	validatedStakeCounter := 0
+	rnd := rand.New(rand.NewSource(1))
 
 	for shardId := common.ShardId(1); shardId <= common.ShardId(shardsNum); shardId++ {
 		statusIdx := 0
 		for i := 0; i < common.MinShardSize-100; i++ {
-			key, _ := crypto.GenerateKey()
+			key, _ := crypto.GenerateKeyFromSeed(rnd)
 			addr := crypto.PubkeyToAddress(key.PublicKey)
 			status := statuses[statusIdx]
 			appState.State.SetState(addr, status)
@@ -1719,11 +1721,12 @@ func TestBalance_shards_increasing(t *testing.T) {
 	verifiedByShard := map[common.ShardId]int{}
 	suspendedByShard := map[common.ShardId]int{}
 	validatedStakeCounter := 0
+	rnd := rand.New(rand.NewSource(1))
 
 	for shardId := common.ShardId(1); shardId <= common.ShardId(shardsNum); shardId++ {
 		statusIdx := 0
 		for i := 0; i < common.MaxShardSize+100; i++ {
-			key, _ := crypto.GenerateKey()
+			key, _ := crypto.GenerateKeyFromSeed(rnd)
 			addr := crypto.PubkeyToAddress(key.PublicKey)
 			status := statuses[statusIdx]
 			appState.State.SetState(addr, status)

@@ -181,7 +181,15 @@ func GenerateKey() (*ecdsa.PrivateKey, error) {
 }
 
 func GenerateKeyFromSeed(rand io.Reader) (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(S256(), rand)
+	b := make([]byte, 32)
+	for {
+		if _, err := io.ReadFull(rand, b); err != nil {
+			return nil, err
+		}
+		if key, err := ToECDSA(b); err == nil {
+			return key, nil
+		}
+	}
 }
 
 // ValidateSignatureValues verifies whether the signature values are valid with

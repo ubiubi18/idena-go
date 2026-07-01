@@ -11,8 +11,8 @@ import (
 	"github.com/idena-network/idena-go/log"
 	models "github.com/idena-network/idena-go/protobuf"
 	s2 "github.com/klauspost/compress/s2"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-msgio"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -110,7 +110,7 @@ func newPeer(stream network.Stream, maxDelayMs int, metrics *metricCollector) *p
 	rw := msgio.NewReadWriter(stream)
 
 	id := stream.Conn().RemotePeer()
-	prettyId := id.Pretty()
+	prettyId := id.String()
 	logger := log.New("id", prettyId)
 	throttlingLogger := log.NewThrottlingLogger(logger)
 
@@ -560,7 +560,7 @@ func (p *protoPeer) disconnect(reason string) {
 }
 
 func (p *protoPeer) ID() string {
-	return p.id.Pretty()
+	return p.id.String()
 }
 
 func (p *protoPeer) RemoteAddr() string {

@@ -3,7 +3,7 @@ package protocol
 import (
 	"errors"
 	"github.com/idena-network/idena-go/common"
-	peer2 "github.com/libp2p/go-libp2p-core/peer"
+	peer2 "github.com/libp2p/go-libp2p/core/peer"
 	"math/rand"
 	"sync"
 	"time"

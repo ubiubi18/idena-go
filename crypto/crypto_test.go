@@ -242,13 +242,17 @@ func TestGenerateKeyFromSeed(t *testing.T) {
 
 	newKey1, err := GenerateKeyFromSeed(bytes.NewReader(sig))
 	require.NoError(t, err)
+	newKey1Again, err := GenerateKeyFromSeed(bytes.NewReader(sig))
+	require.NoError(t, err)
 
 	sig2, err := Sign(common.Hash{0x2}.Bytes(), key)
 	newKey2, err := GenerateKeyFromSeed(bytes.NewReader(sig2))
 	require.NoError(t, err)
 
 	key1Bytes := FromECDSA(newKey1)
+	key1AgainBytes := FromECDSA(newKey1Again)
 	key2Bytes := FromECDSA(newKey2)
 
+	require.Equal(t, key1Bytes, key1AgainBytes)
 	require.NotEqual(t, key1Bytes, key2Bytes)
 }

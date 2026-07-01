@@ -1,7 +1,7 @@
 package protocol
 
 import (
-	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -30,4 +30,3 @@ func (n *notifiee) OpenedStream(net network.Network, conn network.Stream) {
 
 func (n *notifiee) ClosedStream(net network.Network, stream network.Stream) {
 }
-

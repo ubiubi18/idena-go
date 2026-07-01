@@ -20,11 +20,10 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/pengings"
 	models "github.com/idena-network/idena-go/protobuf"
-	core "github.com/libp2p/go-libp2p-core"
-	"github.com/libp2p/go-libp2p-core/helpers"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	core "github.com/libp2p/go-libp2p/core"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
 	"strings"
@@ -124,7 +123,7 @@ func NewIdenaGossipHandler(host core.Host, pubsub *pubsub.PubSub, cfg config.P2P
 func (h *IdenaGossipHandler) Start() {
 
 	setHandler := func() {
-		matcher, _ := helpers.MultistreamSemverMatcher(IdenaProtocol)
+		matcher, _ := multistreamSemverMatcher(IdenaProtocol)
 		h.host.SetStreamHandlerMatch(IdenaProtocol, matcher, h.acceptStream)
 		h.connManager = NewConnManager(h.host, h.cfg)
 		notifiee := &notifiee{
@@ -481,7 +480,7 @@ func (h *IdenaGossipHandler) acceptStream(stream network.Stream) {
 		}
 	} else {
 		id := stream.Conn().RemotePeer()
-		h.log.Debug("cannot accept stream", "peerId", id.Pretty(), "canConnect", h.connManager.CanConnect(stream.Conn().RemotePeer()), "canAccept", h.connManager.CanAcceptStream(), "needOwn", h.connManager.NeedInboundOwnShardPeers())
+		h.log.Debug("cannot accept stream", "peerId", id.String(), "canConnect", h.connManager.CanConnect(stream.Conn().RemotePeer()), "canAccept", h.connManager.CanAcceptStream(), "needOwn", h.connManager.NeedInboundOwnShardPeers())
 	}
 }
 
@@ -567,7 +566,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 
 	h.sendManifest(peer)
 
-	h.log.Info("Peer connected", "id", peer.id.Pretty(), "inbound", inbound, "shardId", peer.shardId)
+	h.log.Info("Peer connected", "id", peer.id.String(), "inbound", inbound, "shardId", peer.shardId)
 	if shouldDisconnectAnotherPeer {
 		h.log.Info("Selected to dc", "id", dcPeer, "shardId", dcShard)
 	}
@@ -595,9 +594,9 @@ func (h *IdenaGossipHandler) unregisterPeer(peerId peer.ID) {
 	h.connManager.Disconnected(peerId, err)
 	h.host.ConnManager().UntagPeer(peerId, "idena")
 	if peer.disconnectReason == "" {
-		h.log.Info("Peer disconnected", "id", peerId.Pretty(), "shardId", peer.shardId)
+		h.log.Info("Peer disconnected", "id", peerId.String(), "shardId", peer.shardId)
 	} else {
-		h.log.Info("Peer aborts connection", "id", peerId.Pretty(), "shardId", peer.shardId, "reason", peer.disconnectReason)
+		h.log.Info("Peer aborts connection", "id", peerId.String(), "shardId", peer.shardId, "reason", peer.disconnectReason)
 	}
 }
 
@@ -1033,10 +1032,10 @@ func (h *IdenaGossipHandler) Endpoint() string {
 	for _, a := range addrs {
 		addrStr := a.String()
 		if strings.Contains(addrStr, "ip4") {
-			return fmt.Sprintf("%s/ipfs/%s", addrStr, h.host.ID().Pretty())
+			return fmt.Sprintf("%s/ipfs/%s", addrStr, h.host.ID().String())
 		}
 	}
-	return h.host.ID().Pretty()
+	return h.host.ID().String()
 }
 
 func (h *IdenaGossipHandler) AddPeer(url string) error {
