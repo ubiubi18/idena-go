@@ -42,7 +42,7 @@ require (
 )
 
 require (
-	github.com/idena-network/idena-wasm-binding v0.0.0-20230503080211-4227b9778d3d
+	github.com/idena-network/idena-wasm-binding v0.0.0-20260702064506-6da8d9ef0bc1
 	github.com/ipfs/boxo v0.41.0
 	github.com/libp2p/go-libp2p v0.48.0
 )
@@ -231,7 +231,7 @@ require (
 	github.com/willf/bitset v1.1.10 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
-	go.etcd.io/bbolt v1.3.6 // indirect
+	go.etcd.io/bbolt v1.5.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
@@ -269,6 +269,6 @@ require (
 
 replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.20211223100228-a33b117aa31e
 
-replace github.com/idena-network/idena-wasm-binding => github.com/ubiubi18/idena-wasm-binding v0.0.0-20260701062810-01485c7e3dc5
+replace github.com/idena-network/idena-wasm-binding => github.com/ubiubi18/idena-wasm-binding v0.0.0-20260702064506-6da8d9ef0bc1
 
 go 1.26.4
