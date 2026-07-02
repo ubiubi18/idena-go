@@ -180,10 +180,10 @@ func U256(x *big.Int) *big.Int {
 // S256 interprets x as a two's complement number.
 // x must not exceed 256 bits (the result is undefined if it does) and is not modified.
 //
-//   S256(0)        = 0
-//   S256(1)        = 1
-//   S256(2**255)   = -2**255
-//   S256(2**256-1) = -1
+//	S256(0)        = 0
+//	S256(1)        = 1
+//	S256(2**255)   = -2**255
+//	S256(2**256-1) = -1
 func S256(x *big.Int) *big.Int {
 	if x.Cmp(tt255) < 0 {
 		return x
@@ -270,7 +270,7 @@ func Root(a *big.Float, n uint64) *big.Float {
 	x, x0 := New(1.0), Zero()
 	for {
 
-		A := Mul(a, Pow( Div(New(1.0), x), n1))
+		A := Mul(a, Pow(Div(New(1.0), x), n1))
 
 		x0, x = x, Mul(rn, Add(Mul(n1f, x), A))
 		if Lesser(Mul(Abs(Sub(x, x0)), limit), x) {

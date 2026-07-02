@@ -59,14 +59,14 @@ func TestCalculateShardsNumber(t *testing.T) {
 			expected:      1,
 		},
 		{
-			network: 2800,
+			network:       2800,
 			currentShards: 2,
-			expected: 1,
+			expected:      1,
 		},
 		{
-			network: 2801,
+			network:       2801,
 			currentShards: 2,
-			expected: 2,
+			expected:      2,
 		},
 	}
 

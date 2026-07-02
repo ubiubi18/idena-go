@@ -145,8 +145,7 @@ func Test_FillAuthorsQueue(t *testing.T) {
 func makeCandidates(authors int) []*candidate {
 	res := make([]*candidate, 0)
 	for i := 0; i < authors; i++ {
-		res = append(res, &candidate{
-		})
+		res = append(res, &candidate{})
 	}
 	return res
 }

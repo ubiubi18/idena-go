@@ -25,6 +25,6 @@ func TestCases() ([]byte, error) {
 	return content.ReadFile("test-cases.wasm")
 }
 
-func SharedFungibleToken()([]byte, error) {
+func SharedFungibleToken() ([]byte, error) {
 	return content.ReadFile("shared-fungible-token-wallet.wasm")
 }

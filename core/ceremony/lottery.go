@@ -18,7 +18,7 @@ type shardAuthors struct {
 
 type flipDistribution struct {
 	shortFlipsPerCandidate [][]int
-	longFlipsPerCandidate [][]int
+	longFlipsPerCandidate  [][]int
 }
 
 func GetAuthorsDistribution(shards map[common.ShardId]*candidatesOfShard, seed []byte, shortFlipsCount int) map[common.ShardId]*shardAuthors {
@@ -130,7 +130,7 @@ func appendAdditionalCandidates(seed []byte, candidates []*candidate, authorsPer
 	return authorsPerCandidate, candidatesPerAuthor
 }
 
-func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int, flipsPerAuthor map[int][][]byte, flips [][]byte, seed []byte, shortFlipsCount int) (shortFlipsPerCandidate [][]int, longFlipsPerCandidate  [][]int) {
+func GetFlipsDistribution(candidatesCount int, authorsPerCandidate map[int][]int, flipsPerAuthor map[int][][]byte, flips [][]byte, seed []byte, shortFlipsCount int) (shortFlipsPerCandidate [][]int, longFlipsPerCandidate [][]int) {
 	distinct := func(arr []int) []int {
 		m := make(map[int]struct{})
 		var output []int

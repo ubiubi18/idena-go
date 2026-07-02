@@ -817,4 +817,3 @@ func unhex(str string) []byte {
 	}
 	return b
 }
-

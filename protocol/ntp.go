@@ -43,7 +43,7 @@ func (s durationSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // checkClockDrift queries an NTP server for clock drifts and warns the user if
 // one large enough is detected.
-func checkClockDrift() bool{
+func checkClockDrift() bool {
 	drift, err := SntpDrift(ntpChecks)
 	if err != nil {
 		return true

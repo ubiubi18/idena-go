@@ -22,6 +22,10 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
 
+      - name: Format
+        shell: bash
+        run: test -z "$(gofmt -l $(git ls-files '*.go'))"
+
       - name: Test
         run: go test -v ./...
 
