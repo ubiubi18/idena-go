@@ -4,10 +4,6 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
-	iface "github.com/ipfs/kubo/core/coreiface"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"github.com/libp2p/go-libp2p/core"
-	"time"
 )
 
 const (
@@ -80,30 +76,12 @@ func (e *NewFlipKeysPackageEvent) EventID() eventbus.EventID {
 	return NewFlipKeysPackageID
 }
 
-type IpfsPortChangedEvent struct {
-	Host   core.Host
-	PubSub *pubsub.PubSub
-}
-
-func (i IpfsPortChangedEvent) EventID() eventbus.EventID {
-	return IpfsPortChangedEventId
-}
-
 type DeleteFlipEvent struct {
 	FlipCid []byte
 }
 
 func (DeleteFlipEvent) EventID() eventbus.EventID {
 	return DeleteFlipEventID
-}
-
-type PeersEvent struct {
-	PeersData []iface.ConnectionInfo
-	Time      time.Time
-}
-
-func (e *PeersEvent) EventID() eventbus.EventID {
-	return PeersEventID
 }
 
 type BlockchainResetEvent struct {
