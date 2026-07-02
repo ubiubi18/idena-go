@@ -51,6 +51,14 @@ jobs:
       - name: Test
         run: go test -v ./...
 
+      - name: Vulnerability scan
+        if: runner.os == 'Linux'
+        run: ./scripts/govulncheck-filter.sh
+
+      - name: Memory IPFS contract build
+        if: runner.os == 'Linux'
+        run: ./scripts/check-memory-ipfs-build.sh
+
       - name: Build
         run: |
           mkdir -p builds
