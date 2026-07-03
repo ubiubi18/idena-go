@@ -7,7 +7,7 @@ import (
 	"github.com/idena-network/idena-go/common/hexutil"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/log"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -34,6 +34,7 @@ type txKeeper struct {
 	hasChanges bool
 	datadir    string
 	mutex      sync.RWMutex
+	persistMu  sync.Mutex
 }
 
 func NewTxKeeper(datadir string) *txKeeper {
@@ -41,35 +42,67 @@ func NewTxKeeper(datadir string) *txKeeper {
 }
 
 func (k *txKeeper) persist() error {
+	k.persistMu.Lock()
+	defer k.persistMu.Unlock()
+
 	file, err := k.openFile()
 	if err != nil {
 		return err
 	}
 	defer file.Close()
+
+	list := k.snapshotForPersist()
+
+	data, err := json.Marshal(list)
+	if err != nil {
+		k.markHasChanges()
+		return err
+	}
+	if err := file.Truncate(0); err != nil {
+		k.markHasChanges()
+		return err
+	}
+	if _, err := file.Seek(0, 0); err != nil {
+		k.markHasChanges()
+		return err
+	}
+	if _, err := file.Write(data); err != nil {
+		k.markHasChanges()
+		return err
+	}
+	return nil
+}
+
+func (k *txKeeper) snapshotForPersist() []hexutil.Bytes {
+	k.mutex.Lock()
+	defer k.mutex.Unlock()
+
 	list := make([]hexutil.Bytes, 0, len(k.txs))
 	for _, d := range k.txs {
 		list = append(list, d)
 	}
-	data, err := json.Marshal(list)
-	if err != nil {
-		return err
-	}
-	if err := file.Truncate(0); err != nil {
-		return err
-	}
-	if _, err := file.Write(data); err != nil {
-		return err
-	}
 	k.hasChanges = false
-	return nil
+	return list
+}
+
+func (k *txKeeper) markHasChanges() {
+	k.mutex.Lock()
+	k.hasChanges = true
+	k.mutex.Unlock()
+}
+
+func (k *txKeeper) hasPendingChanges() bool {
+	k.mutex.RLock()
+	defer k.mutex.RUnlock()
+	return k.hasChanges
 }
 func (k *txKeeper) Load() {
 	file, err := k.openFile()
-	defer file.Close()
 	if err != nil {
 		return
 	}
-	data, err := ioutil.ReadAll(file)
+	defer file.Close()
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return
 	}
@@ -91,11 +124,11 @@ func (k *txKeeper) Load() {
 
 func (k *txKeeper) openFile() (file *os.File, err error) {
 	newpath := filepath.Join(k.datadir, Folder)
-	if err := os.MkdirAll(newpath, os.ModePerm); err != nil {
+	if err := os.MkdirAll(newpath, 0700); err != nil {
 		return nil, err
 	}
 	filePath := filepath.Join(newpath, "txs.json")
-	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0666)
+	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -155,6 +188,12 @@ func (k *txKeeper) List() []*types.Transaction {
 	return result
 }
 
+func (k *txKeeper) Len() int {
+	k.mutex.RLock()
+	defer k.mutex.RUnlock()
+	return len(k.txs)
+}
+
 func (k *txKeeper) Clear() {
 	k.mutex.Lock()
 	defer k.mutex.Unlock()
@@ -180,10 +219,8 @@ func (k *txKeeper) loop() {
 func (k *txKeeper) persistLoop() {
 	for {
 		time.Sleep(time.Millisecond * 100)
-		if k.hasChanges {
-			k.mutex.RLock()
+		if k.hasPendingChanges() {
 			err := k.persist()
-			k.mutex.RUnlock()
 			if err == nil {
 				time.Sleep(txKeeperPersistInterval)
 			}

@@ -4,7 +4,6 @@ import (
 	"github.com/idena-network/idena-go/common"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	"sync"
 	"testing"
 	"time"
 )
@@ -67,48 +66,31 @@ func TestDefaultPushTracker_AddPendingRequest(t *testing.T) {
 	hash1 := common.Hash128{0x1}
 	tracker.RegisterPull(hash1)
 
-	pulls := make([]PendingPulls, 2)
-
-	go func() {
-		pulls[0] = <-tracker.Requests()
-		pulls[1] = <-tracker.Requests()
-	}()
-
 	tracker.AddPendingPush("1", hash1)
 	tracker.AddPendingPush("2", hash1)
-	time.Sleep(time.Millisecond * 550)
 
-	require.Equal(t, peer.ID("1"), pulls[0].Id)
-	require.Equal(t, peer.ID(""), pulls[1].Id)
+	pull := requirePendingPull(t, tracker.Requests(), time.Second)
+	require.Equal(t, peer.ID("1"), pull.Id)
+	requireNoPendingPull(t, tracker.Requests(), time.Millisecond*200)
 
-	time.Sleep(time.Millisecond * 1100)
-	require.Equal(t, peer.ID("2"), pulls[1].Id)
+	pull = requirePendingPull(t, tracker.Requests(), time.Second)
+	require.Equal(t, peer.ID("2"), pull.Id)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	pulls = make([]PendingPulls, 3)
-	go func() {
-		pulls[0] = <-tracker.Requests()
-		pulls[1] = <-tracker.Requests()
-		select {
-		case pulls[2] = <-tracker.Requests():
-		case <-time.After(time.Millisecond * 600):
-		}
-		wg.Done()
-	}()
+	pulls := make([]PendingPulls, 0, 2)
 
 	tracker.AddPendingPush("3", hash1)
 	tracker.AddPendingPush("4", hash1)
 	tracker.AddPendingPush("5", hash1)
 	tracker.AddPendingPush("6", hash1)
 
-	time.Sleep(time.Millisecond * 700)
+	pulls = append(pulls, requirePendingPull(t, tracker.Requests(), time.Second))
+	pulls = append(pulls, requirePendingPull(t, tracker.Requests(), time.Second))
+
 	holder.Add(hash1, 1, common.MultiShard, false)
-	wg.Wait()
+	requireNoPendingPull(t, tracker.Requests(), time.Millisecond*600)
 
 	require.Equal(t, peer.ID("3"), pulls[0].Id)
 	require.Equal(t, peer.ID("4"), pulls[1].Id)
-	require.Equal(t, peer.ID(""), pulls[2].Id)
 	require.Len(t, tracker.Requests(), 0)
 
 	len := 0
@@ -119,8 +101,30 @@ func TestDefaultPushTracker_AddPendingRequest(t *testing.T) {
 
 	require.Equal(t, 0, len)
 
-	require.Len(t, tracker.pendingPushes.list, 0)
+	require.Equal(t, 0, tracker.pendingPushes.Len())
 
 	tracker.AddPendingPush("1", common.Hash128{})
-	require.Len(t, tracker.pendingPushes.list, 0)
+	require.Equal(t, 0, tracker.pendingPushes.Len())
+}
+
+func requirePendingPull(t *testing.T, requests <-chan PendingPulls, timeout time.Duration) PendingPulls {
+	t.Helper()
+
+	select {
+	case pull := <-requests:
+		return pull
+	case <-time.After(timeout):
+		require.FailNow(t, "timed out waiting for pending pull")
+		return PendingPulls{}
+	}
+}
+
+func requireNoPendingPull(t *testing.T, requests <-chan PendingPulls, timeout time.Duration) {
+	t.Helper()
+
+	select {
+	case pull := <-requests:
+		require.FailNowf(t, "unexpected pending pull", "received pull from peer %q", pull.Id)
+	case <-time.After(timeout):
+	}
 }

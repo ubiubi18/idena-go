@@ -318,8 +318,9 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		require.NoError(t, pool.AddExternalTxs(validation.InboundTx, getTx(keys[i])))
 	}
-	time.Sleep(time.Second)
-	require.Len(t, pool.txKeeper.txs, 320)
+	require.Eventually(t, func() bool {
+		return pool.txKeeper.Len() == 320
+	}, time.Second, time.Millisecond*10)
 
 	pool.txKeeper.RemoveTxs([]common.Hash{pool.GetPendingTransaction(false, true, common.MultiShard, false)[0].Hash()})
 	time.Sleep(time.Second)
@@ -333,9 +334,7 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 	}, Body: &types.Body{}})
 
 	// wait for async mempool saving
-	prevPool.txKeeper.mutex.RLock()
 	prevPool.txKeeper.persist()
-	prevPool.txKeeper.mutex.RUnlock()
 
 	pool = getPool(datadir)
 	pool.appState = prevPool.appState
@@ -344,8 +343,9 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 			Height: 1,
 		},
 	}, common.Address{0x1}, true)
-	time.Sleep(time.Second)
-	require.Len(t, pool.txKeeper.txs, 319)
+	require.Eventually(t, func() bool {
+		return pool.txKeeper.Len() == 319
+	}, time.Second, time.Millisecond*10)
 	require.Len(t, pool.all.txs, 319)
 
 	pool.appState.State.SetGlobalEpoch(1)
@@ -359,16 +359,14 @@ func TestTxPool_AddWithTxKeeper(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	pool.txKeeper.mutex.RLock()
 	pool.txKeeper.persist()
-	pool.txKeeper.mutex.RUnlock()
 
-	require.Len(t, pool.txKeeper.txs, 0)
+	require.Equal(t, 0, pool.txKeeper.Len())
 	require.Len(t, pool.all.txs, 0)
 
 	txKeeper := NewTxKeeper(pool.cfg.DataDir)
 	txKeeper.Load()
-	require.Len(t, pool.txKeeper.txs, 0)
+	require.Equal(t, 0, pool.txKeeper.Len())
 }
 
 func TestTxPool_RecoverValidationTxs_OnAfterLongSession(t *testing.T) {
