@@ -267,7 +267,8 @@ func Root(a *big.Float, n uint64) *big.Float {
 	limit := Pow(New(2), 128)
 	n1 := n - 1
 	n1f, rn := New(float64(n1)), Div(New(1.0), New(float64(n)))
-	x, x0 := New(1.0), Zero()
+	x := New(1.0)
+	var x0 *big.Float
 	for {
 
 		A := Mul(a, Pow(Div(New(1.0), x), n1))

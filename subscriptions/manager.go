@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/log"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -27,9 +27,9 @@ func NewManager(datadir string) (*Manager, error) {
 	}
 
 	file, err := m.openFile()
-	defer file.Close()
 	if err == nil {
-		data, err := ioutil.ReadAll(file)
+		defer file.Close()
+		data, err := io.ReadAll(file)
 		if err != nil {
 			return nil, err
 		}
@@ -62,10 +62,10 @@ func (m *Manager) Subscribe(contract common.Address, event string) error {
 
 func (m *Manager) persist() error {
 	file, err := m.openFile()
-	defer file.Close()
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 	data, err := json.Marshal(m.list)
 	if err != nil {
 		return err
@@ -81,11 +81,11 @@ func (m *Manager) persist() error {
 
 func (m *Manager) openFile() (file *os.File, err error) {
 	newpath := filepath.Join(m.datadir, Folder)
-	if err := os.MkdirAll(newpath, os.ModePerm); err != nil {
+	if err := os.MkdirAll(newpath, 0700); err != nil {
 		return nil, err
 	}
 	filePath := filepath.Join(newpath, "subscriptions.json")
-	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0666)
+	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
 	}

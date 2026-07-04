@@ -21,7 +21,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"reflect"
@@ -137,7 +136,7 @@ func TestLoadECDSAFile(t *testing.T) {
 		}
 	}
 
-	ioutil.WriteFile(fileName0, []byte(testPrivHex), 0600)
+	require.NoError(t, os.WriteFile(fileName0, []byte(testPrivHex), 0600))
 	defer os.Remove(fileName0)
 
 	key0, err := LoadECDSA(fileName0)
@@ -246,6 +245,7 @@ func TestGenerateKeyFromSeed(t *testing.T) {
 	require.NoError(t, err)
 
 	sig2, err := Sign(common.Hash{0x2}.Bytes(), key)
+	require.NoError(t, err)
 	newKey2, err := GenerateKeyFromSeed(bytes.NewReader(sig2))
 	require.NoError(t, err)
 

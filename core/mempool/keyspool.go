@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -20,7 +19,7 @@ import (
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/pkg/errors"
 	dbm "github.com/tendermint/tm-db"
-	"math/big"
+	"google.golang.org/protobuf/proto"
 	"sync"
 	"time"
 )
@@ -29,10 +28,6 @@ const (
 	maxPrivateKeysPackageDataSize = 1024 * 100
 	publicFlipKeySize             = 32
 	maxFlipKeySyncCounts          = 20
-)
-
-var (
-	maxFloat *big.Float
 )
 
 var (
@@ -47,10 +42,6 @@ type FlipKeysPool interface {
 	GetFlipKeysForSync(shardId common.ShardId, noFilter bool) []*types.PublicFlipKey
 	GetPriorityFlipPackagesHashesForSync() []common.Hash128
 	GetPriorityFlipKeysForSync() []*types.PublicFlipKey
-}
-
-func init() {
-	maxFloat = new(big.Float).SetInt(new(big.Int).SetBytes(common.MaxHash[:]))
 }
 
 type flipKeyPackageWrapper struct {
@@ -511,14 +502,24 @@ func EncryptPrivateKeysPackage(publicFlipKey *ecies.PrivateKey, privateFlipKey *
 		}
 
 		encryptedKey, err := ecies.Encrypt(rand.Reader, ecies.ImportECDSAPublic(ecdsaPubKey), keyToEncrypt, nil, nil)
+		if err != nil {
+			encryptedKeyPairs = append(encryptedKeyPairs, []byte{})
+			continue
+		}
 		encryptedKeyPairs = append(encryptedKeyPairs, encryptedKey)
 	}
 
 	arr := &keysArray{encryptedKeyPairs}
 
-	arrayToEncrypt, _ := arr.ToBytes()
+	arrayToEncrypt, err := arr.ToBytes()
+	if err != nil {
+		return nil
+	}
 
-	encryptedArray, _ := ecies.Encrypt(rand.Reader, &publicFlipKey.PublicKey, arrayToEncrypt, nil, nil)
+	encryptedArray, err := ecies.Encrypt(rand.Reader, &publicFlipKey.PublicKey, arrayToEncrypt, nil, nil)
+	if err != nil {
+		return nil
+	}
 
 	return encryptedArray
 }

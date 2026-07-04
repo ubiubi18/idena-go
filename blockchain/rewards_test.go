@@ -20,6 +20,24 @@ import (
 	"testing"
 )
 
+func flipToReward(cid []byte, grade types.Grade, gradeScore decimal.Decimal) *types.FlipToReward {
+	return &types.FlipToReward{
+		Cid:        cid,
+		Grade:      grade,
+		GradeScore: gradeScore,
+	}
+}
+
+func successfulInvite(age uint16, epochHeight uint32, penalized bool, address common.Address) *types.SuccessfulInvite {
+	return &types.SuccessfulInvite{
+		Age:         age,
+		TxHash:      common.Hash{},
+		EpochHeight: epochHeight,
+		Penalized:   penalized,
+		Address:     address,
+	}
+}
+
 func Test_rewardValidIdentities(t *testing.T) {
 
 	god := common.Address{0x1}
@@ -68,31 +86,31 @@ func Test_rewardValidIdentities(t *testing.T) {
 		1: {
 			BadAuthors: map[common.Address]types.BadAuthorReason{badAuth: types.WrongWordsBadAuthor},
 			GoodAuthors: map[common.Address]*types.ValidationResult{
-				auth1:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(4.5)}, {[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(3.5)}}, NewIdentityState: uint8(state.Verified)},
+				auth1:  {FlipsToReward: []*types.FlipToReward{flipToReward([]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(4.5)), flipToReward([]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(3.5))}, NewIdentityState: uint8(state.Verified)},
 				auth2:  {NewIdentityState: uint8(state.Newbie)},
-				auth3:  {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(5.5)}, {[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(2.5)}, {[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(1.5)}}, NewIdentityState: uint8(state.Verified)},
-				failed: {FlipsToReward: []*types.FlipToReward{{[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(6.5)}, {[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(5.0)}, {[]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(8.0)}}, Missed: true},
+				auth3:  {FlipsToReward: []*types.FlipToReward{flipToReward([]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(5.5)), flipToReward([]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(2.5)), flipToReward([]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(1.5))}, NewIdentityState: uint8(state.Verified)},
+				failed: {FlipsToReward: []*types.FlipToReward{flipToReward([]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(6.5)), flipToReward([]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(5.0)), flipToReward([]byte{0x1}, types.GradeNone, decimal.NewFromFloat32(8.0))}, Missed: true},
 			},
 			GoodInviters: map[common.Address]*types.InviterValidationResult{
 				auth1: {
 					SuccessfulInvites: []*types.SuccessfulInvite{
-						{2, common.Hash{}, 100, true, common.Address{}},
+						successfulInvite(2, 100, true, common.Address{}),
 					}, PayInvitationReward: true, NewIdentityState: uint8(state.Verified)},
 				auth2: {PayInvitationReward: true, NewIdentityState: uint8(state.Newbie)},
 				auth3: {PayInvitationReward: false, NewIdentityState: uint8(state.Verified)},
 				auth4: {PayInvitationReward: true, NewIdentityState: uint8(state.Verified),
 					SuccessfulInvites: []*types.SuccessfulInvite{
-						{3, common.Hash{}, 200, false, common.Address{}},
+						successfulInvite(3, 200, false, common.Address{}),
 					}},
 				failed: {PayInvitationReward: false,
 					SuccessfulInvites: []*types.SuccessfulInvite{
-						{2, common.Hash{}, 0, false, common.Address{}},
+						successfulInvite(2, 0, false, common.Address{}),
 					}},
 				god: {
 					SuccessfulInvites: []*types.SuccessfulInvite{
-						{1, common.Hash{}, 50, false, common.Address{}},
-						{2, common.Hash{}, 100, false, common.Address{}},
-						{3, common.Hash{}, 200, false, common.Address{}},
+						successfulInvite(1, 50, false, common.Address{}),
+						successfulInvite(2, 100, false, common.Address{}),
+						successfulInvite(3, 200, false, common.Address{}),
 					}, PayInvitationReward: true},
 			},
 			ReportersToRewardByFlip: map[int]map[common.Address]*types.Candidate{
@@ -525,59 +543,59 @@ func Test_addInvitationReward(t *testing.T) {
 			GoodInviters: map[common.Address]*types.InviterValidationResult{
 				addrs[0]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Undefined), SuccessfulInvites: []*types.SuccessfulInvite{
-						{1, common.Hash{}, 0, true, common.Address{0xa1}},
-						{2, common.Hash{}, 999999, false, common.Address{0xa2}},
+						successfulInvite(1, 0, true, common.Address{0xa1}),
+						successfulInvite(2, 999999, false, common.Address{0xa2}),
 					},
 				},
 				addrs[1]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{
-						{2, common.Hash{}, 3000, true, common.Address{0xa3}},
-						{3, common.Hash{}, 70000, true, common.Address{0xa4}},
+						successfulInvite(2, 3000, true, common.Address{0xa3}),
+						successfulInvite(3, 70000, true, common.Address{0xa4}),
 					},
 				},
 				addrs[2]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Newbie), SuccessfulInvites: []*types.SuccessfulInvite{
-						{3, common.Hash{}, 10000, true, common.Address{0xa5}},
-						{1, common.Hash{}, 30000, false, common.Address{0xa6}},
+						successfulInvite(3, 10000, true, common.Address{0xa5}),
+						successfulInvite(1, 30000, false, common.Address{0xa6}),
 					},
 				},
 				addrs[3]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Human), SuccessfulInvites: []*types.SuccessfulInvite{
-						{2, common.Hash{}, 15000, false, common.Address{0xa7}},
-						{2, common.Hash{}, 25000, false, common.Address{0xa8}},
+						successfulInvite(2, 15000, false, common.Address{0xa7}),
+						successfulInvite(2, 25000, false, common.Address{0xa8}),
 					},
 				},
 				addrs[4]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{
-						{2, common.Hash{}, 3000, true, common.Address{0xa9}},
-						{3, common.Hash{}, 70000, true, common.Address{0xaa}},
+						successfulInvite(2, 3000, true, common.Address{0xa9}),
+						successfulInvite(3, 70000, true, common.Address{0xaa}),
 					},
 				},
 				addrs[5]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Newbie), SuccessfulInvites: []*types.SuccessfulInvite{
-						{3, common.Hash{}, 10000, true, common.Address{0xab}},
-						{1, common.Hash{}, 30000, false, common.Address{0xac}},
+						successfulInvite(3, 10000, true, common.Address{0xab}),
+						successfulInvite(1, 30000, false, common.Address{0xac}),
 					},
 				},
 				addrs[6]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Human), SuccessfulInvites: []*types.SuccessfulInvite{
-						{2, common.Hash{}, 15000, false, common.Address{0xad}},
-						{2, common.Hash{}, 25000, false, common.Address{0xae}},
+						successfulInvite(2, 15000, false, common.Address{0xad}),
+						successfulInvite(2, 25000, false, common.Address{0xae}),
 					},
 				},
 				addrs[7]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Verified), SuccessfulInvites: []*types.SuccessfulInvite{
-						{1, common.Hash{}, 33333, true, common.Address{0xaf}},
+						successfulInvite(1, 33333, true, common.Address{0xaf}),
 					},
 				},
 				addrs[8]: {
 					PayInvitationReward: false, NewIdentityState: uint8(state.Newbie), SuccessfulInvites: []*types.SuccessfulInvite{
-						{2, common.Hash{}, 33333, false, common.Address{0xb0}},
+						successfulInvite(2, 33333, false, common.Address{0xb0}),
 					},
 				},
 				addrs[9]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Human), SuccessfulInvites: []*types.SuccessfulInvite{
-						{3, common.Hash{}, 33333, false, common.Address{0xb1}},
+						successfulInvite(3, 33333, false, common.Address{0xb1}),
 					},
 				},
 				addrs[10]: {
@@ -585,12 +603,12 @@ func Test_addInvitationReward(t *testing.T) {
 				},
 				addrs[11]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Newbie), SuccessfulInvites: []*types.SuccessfulInvite{
-						{2, common.Hash{}, 33333, false, common.Address{0xb3}},
+						successfulInvite(2, 33333, false, common.Address{0xb3}),
 					},
 				},
 				addrs[12]: {
 					PayInvitationReward: true, NewIdentityState: uint8(state.Human), SuccessfulInvites: []*types.SuccessfulInvite{
-						{3, common.Hash{}, 33333, false, common.Address{0xb4}},
+						successfulInvite(3, 33333, false, common.Address{0xb4}),
 					},
 				},
 			},

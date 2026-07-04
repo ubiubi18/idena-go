@@ -62,9 +62,9 @@ func SyncHandler(h Handler) Handler {
 // FileHandler returns a handler which writes log records to the give file
 // using the given format. If the path
 // already exists, FileHandler will append to the given file. If it does not,
-// FileHandler will create the file with mode 0644.
+// FileHandler will create the file with mode 0600.
 func FileHandler(path string, fmtr Format) (Handler, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func prepFile(path string) (*countingWriter, error) {
 // at the given path. When a file's size reaches the limit, the handler creates
 // a new file named after the timestamp of the first log record it will contain.
 func RotatingFileHandler(path string, limit uint32, formatter Format) (Handler, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func RotatingFileHandler(path string, limit uint32, formatter Format) (Handler, 
 				os.Remove(oldFile)
 				os.Rename(path, oldFile)
 
-				f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+				f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 				if err != nil {
 					mu.Unlock()
 					return err

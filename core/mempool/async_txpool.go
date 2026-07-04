@@ -1,7 +1,6 @@
 package mempool
 
 import (
-	"errors"
 	"fmt"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
@@ -42,7 +41,7 @@ func (pool *AsyncTxPool) AddExternalTxs(txType validation.TxType, txs ...*types.
 		}
 	}
 	if skipped > 0 {
-		return errors.New(fmt.Sprintf("%v txs skipped", skipped))
+		return fmt.Errorf("%v txs skipped", skipped)
 	}
 	return nil
 }

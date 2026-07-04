@@ -308,14 +308,11 @@ func (engine *Engine) loop() {
 }
 
 func (engine *Engine) fmtProposer(proposerPubKey []byte) string {
-	var proposer string
-	if proposer = hexutil.Encode(proposerPubKey); len(proposerPubKey) == 0 {
-		proposer = "NOT FOUND"
-	} else {
-		addr, _ := crypto.PubKeyBytesToAddress(proposerPubKey)
-		proposer = addr.Hex()
+	if len(proposerPubKey) == 0 {
+		return "NOT FOUND"
 	}
-	return proposer
+	addr, _ := crypto.PubKeyBytesToAddress(proposerPubKey)
+	return addr.Hex()
 }
 
 func (engine *Engine) completeRound(round uint64) {

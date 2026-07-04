@@ -2,6 +2,9 @@ package config
 
 import (
 	"flag"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -106,6 +109,58 @@ func TestValidateIpfsRoutingAllowsLegacyDhtServerOptIn(t *testing.T) {
 	t.Setenv(AllowIpfsDhtServerEnv, ipfsUnsafeRoutingEnabled)
 
 	require.NoError(t, validateIpfsRouting(IpfsRoutingDht))
+}
+
+func TestSetApiKeyCreatesPrivateFile(t *testing.T) {
+	cfg := getDefaultConfig(t.TempDir())
+
+	require.NoError(t, cfg.SetApiKey())
+
+	require.NotEmpty(t, cfg.RPC.APIKey)
+	assertPrivateApiKeyFile(t, filepath.Join(cfg.DataDir, apiKeyFileName))
+}
+
+func TestSetApiKeyTightensExistingFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose POSIX file mode bits")
+	}
+
+	cfg := getDefaultConfig(t.TempDir())
+	apiKeyFile := filepath.Join(cfg.DataDir, apiKeyFileName)
+	require.NoError(t, os.WriteFile(apiKeyFile, []byte("existing-key\n"), 0644))
+
+	require.NoError(t, cfg.SetApiKey())
+
+	require.Equal(t, "existing-key", cfg.RPC.APIKey)
+	assertPrivateApiKeyFile(t, apiKeyFile)
+}
+
+func TestSetApiKeyTightensExistingFileWhenConfigured(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose POSIX file mode bits")
+	}
+
+	cfg := getDefaultConfig(t.TempDir())
+	cfg.RPC.APIKey = "configured-key"
+	apiKeyFile := filepath.Join(cfg.DataDir, apiKeyFileName)
+	require.NoError(t, os.WriteFile(apiKeyFile, []byte("old-key\n"), 0644))
+
+	require.NoError(t, cfg.SetApiKey())
+
+	data, err := os.ReadFile(apiKeyFile)
+	require.NoError(t, err)
+	require.Equal(t, cfg.RPC.APIKey, string(data))
+	assertPrivateApiKeyFile(t, apiKeyFile)
+}
+
+func assertPrivateApiKeyFile(t *testing.T, path string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return
+	}
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
 }
 
 func newTestContext(t *testing.T) *cli.Context {

@@ -66,12 +66,12 @@ func NewSnapshotManager(db dbm.DB, state *StateDB, bus eventbus.Bus, ipfs ipfs.P
 
 func createSnapshotFile(datadir string, height uint64, version SnapshotVersion) (fileName string, file *os.File, err error) {
 	newpath := filepath.Join(datadir, SnapshotsFolder)
-	if err := os.MkdirAll(newpath, os.ModePerm); err != nil {
+	if err := os.MkdirAll(newpath, 0700); err != nil {
 		return "", nil, err
 	}
 
 	filePath := filepath.Join(newpath, strconv.FormatUint(height, 10)+"."+strconv.FormatInt(int64(version), 10)+".tar")
-	f, err := os.Create(filePath)
+	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return "", nil, err
 	}
@@ -152,6 +152,9 @@ func (m *SnapshotManager) clearSnapshotFolder(excludedFiles []string) {
 	}
 
 	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if !info.IsDir() && !contains(excludedFiles, path) {
 			files = append(files, path)
 		}

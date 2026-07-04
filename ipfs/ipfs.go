@@ -37,7 +37,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/whyrusleeping/go-logging"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
@@ -311,7 +310,6 @@ func (p *ipfsProxy) Add(data []byte, pin bool) (cid.Cid, error) {
 		case <-ctx.Done():
 			err = errors.New("timeout while writing data to ipfs")
 		default:
-			break
 		}
 		cancel()
 		if err == nil {
@@ -467,7 +465,9 @@ func (p *ipfsProxy) LoadTo(key []byte, to io.Writer, ctx context.Context, onLoad
 	case <-ctx.Done():
 		return errors.New("ipfs load: context canceled")
 	default:
-		break
+	}
+	if err != nil {
+		return err
 	}
 	file := files.ToFile(f)
 	defer file.Close()
@@ -573,6 +573,9 @@ func (p *ipfsProxy) Cid(data []byte) (cid.Cid, error) {
 	}
 
 	settings, prefix, err := options.UnixfsAddOptions(options.Unixfs.CidVersion(1))
+	if err != nil {
+		return EmptyCid, err
+	}
 	fileAdder.Chunker = settings.Chunker
 	fileAdder.Pin = false
 	fileAdder.RawLeaves = settings.RawLeaves
@@ -624,8 +627,8 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		ipfsConfig.Swarm.ConnMgr.GracePeriod = gracePeriod
 		ipfsConfig.Swarm.ConnMgr.LowWater = ipfsConf.NewOptionalInteger(int64(cfg.LowWater))
 		ipfsConfig.Swarm.ConnMgr.HighWater = ipfsConf.NewOptionalInteger(int64(cfg.HighWater))
-		ipfsConfig.Reprovider.Interval = reproviderInterval
-		ipfsConfig.Reprovider.Strategy = ipfsConf.NewOptionalString("pinned")
+		ipfsConfig.Provide.DHT.Interval = reproviderInterval
+		ipfsConfig.Provide.Strategy = ipfsConf.NewOptionalString("pinned")
 		ipfsConfig.Swarm.Transports.Security.Noise = ipfsConf.Disabled
 
 		ipfsConfig.Swarm.RelayClient.Enabled = ipfsConf.True
@@ -655,7 +658,10 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		ipfsConfig.Swarm.RelayClient.Enabled = ipfsConf.True
 		ipfsConfig.Swarm.EnableHolePunching = ipfsConf.True
 
-		transformer, _ := ipfsConf.Profiles["badgerds"]
+		transformer, ok := ipfsConf.Profiles["badgerds"]
+		if !ok {
+			return nil, fmt.Errorf("invalid IPFS configuration profile: %s", "badgerds")
+		}
 
 		if err := transformer.Transform(ipfsConfig); err != nil {
 			return nil, err
@@ -702,7 +708,7 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 
 func writeSwarmKey(dataDir string, swarmKey string) {
 	swarmPath := filepath.Join(dataDir, "swarm.key")
-	err := ioutil.WriteFile(swarmPath, []byte(fmt.Sprintf("/key/swarm/psk/1.0.0/\n/base16/\n%v", swarmKey)), 0644)
+	err := os.WriteFile(swarmPath, []byte(fmt.Sprintf("/key/swarm/psk/1.0.0/\n/base16/\n%v", swarmKey)), 0600)
 	if err != nil {
 		log.Error(fmt.Sprintf("Failed to persist swarm file: %v", err))
 	}

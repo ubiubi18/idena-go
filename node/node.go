@@ -102,7 +102,13 @@ func (checker *ceremonyChecker) IsRunning() bool {
 }
 
 func StartMobileNode(path string, cfg string) string {
-	fileHandler, _ := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
+	if err := os.MkdirAll(path, 0700); err != nil {
+		return err.Error()
+	}
+	fileHandler, err := log.FileHandler(filepath.Join(path, "output.log"), log.TerminalFormat(false))
+	if err != nil {
+		return err.Error()
+	}
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.MultiHandler(log.StreamHandler(os.Stdout, log.LogfmtFormat()), fileHandler)))
 
 	c, err := config.MakeMobileConfig(path, cfg)

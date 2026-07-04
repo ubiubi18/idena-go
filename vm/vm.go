@@ -70,11 +70,11 @@ func (vm *VmImpl) createContract(ctx env2.CallContext) embedded.Contract {
 
 func (vm *VmImpl) deploy(tx *types.Transaction, from *common.Address) (addr common.Address, err error) {
 	attach := attachments.ParseDeployContractAttachment(tx)
-	ctx := env2.NewDeployContextImpl(tx, from, attach.CodeHash)
-	addr = ctx.ContractAddr()
 	if attach == nil {
 		return addr, errors.New("can't parse attachment")
 	}
+	ctx := env2.NewDeployContextImpl(tx, from, attach.CodeHash)
+	addr = ctx.ContractAddr()
 	contract := vm.createContract(ctx)
 	if contract == nil {
 		return addr, errors.New("unknown contract")
@@ -144,6 +144,9 @@ func (vm *VmImpl) IsWasm(tx *types.Transaction) bool {
 	switch tx.Type {
 	case types.DeployContractTx:
 		attach := attachments.ParseDeployContractAttachment(tx)
+		if attach == nil {
+			return false
+		}
 		return len(attach.Code) > 0
 	case types.CallContractTx:
 		codeHash := vm.appState.State.GetCodeHash(*tx.To)

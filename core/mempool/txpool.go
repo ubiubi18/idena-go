@@ -51,7 +51,6 @@ type TxPool struct {
 	pendingTxs       map[common.Address]*txMap
 	mempoolCfg       *config.Mempool
 	cfg              *config.Config
-	txSubscription   chan *types.Transaction
 	mutex            *sync.Mutex
 	appState         *appstate.AppState
 	log              log.Logger
@@ -488,9 +487,7 @@ func (pool *TxPool) GetPendingByAddress(address common.Address) []*types.Transac
 	var list []*types.Transaction
 
 	if executable, ok := pool.executableTxs[address]; ok {
-		for _, tx := range executable.txs {
-			list = append(list, tx)
-		}
+		list = append(list, executable.txs...)
 	}
 
 	if pending, ok := pool.pendingTxs[address]; ok {

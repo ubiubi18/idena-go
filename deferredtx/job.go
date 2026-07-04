@@ -1,7 +1,12 @@
 package deferredtx
 
 import (
-	"github.com/golang/protobuf/proto"
+	"io"
+	"math/big"
+	"os"
+	"path/filepath"
+	"sync"
+
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/fee"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -18,11 +23,7 @@ import (
 	"github.com/idena-network/idena-go/vm"
 	"github.com/idena-network/idena-go/vm/embedded"
 	"github.com/shopspring/decimal"
-	"io/ioutil"
-	"math/big"
-	"os"
-	"path/filepath"
-	"sync"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -65,7 +66,7 @@ func NewJob(bus eventbus.Bus, datadir string, appState *appstate.AppState, bc *b
 	}
 
 	defer file.Close()
-	data, err := ioutil.ReadAll(file)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}
@@ -157,10 +158,10 @@ func (j *Job) AddDeferredTx(from common.Address, to *common.Address, amount *big
 
 func (j *Job) persist() error {
 	file, err := j.openFile()
-	defer file.Close()
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 	data := j.txs.ToBytes()
 	if err := file.Truncate(0); err != nil {
 		return err
@@ -173,11 +174,11 @@ func (j *Job) persist() error {
 
 func (j *Job) openFile() (file *os.File, err error) {
 	newpath := filepath.Join(j.datadir, Folder)
-	if err := os.MkdirAll(newpath, os.ModePerm); err != nil {
+	if err := os.MkdirAll(newpath, 0700); err != nil {
 		return nil, err
 	}
 	filePath := filepath.Join(newpath, "txs")
-	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0666)
+	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
 	}

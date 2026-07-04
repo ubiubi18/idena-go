@@ -9,6 +9,8 @@ import (
 	"github.com/idena-network/idena-go/config"
 	"github.com/stretchr/testify/require"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -44,6 +46,20 @@ func TestIpfsProxy_Cid(t *testing.T) {
 	require.Equal(EmptyCid, cid)
 }
 
+func TestWriteSwarmKeyCreatesPrivateFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose POSIX file mode bits")
+	}
+
+	dataDir := t.TempDir()
+
+	writeSwarmKey(dataDir, "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530")
+
+	info, err := os.Stat(filepath.Join(dataDir, "swarm.key"))
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
 func TestIpfsProxy_Get_Cid(t *testing.T) {
 	require := require.New(t)
 
@@ -75,6 +91,7 @@ func TestIpfsProxy_Get_Cid(t *testing.T) {
 		require.Equal(cid.Bytes(), localCid.Bytes(), "n: %v", item)
 
 		data2, err := proxy.Get(cid.Bytes(), Block)
+		require.NoError(err)
 
 		require.Equal(data, data2)
 	}

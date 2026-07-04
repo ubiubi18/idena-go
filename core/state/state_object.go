@@ -869,12 +869,6 @@ func (s *stateAccount) setBalance(amount *big.Int) {
 	s.touch()
 }
 
-func (s *stateAccount) deepCopy(db *StateDB, onDirty func(addr common.Address)) *stateAccount {
-	stateObject := newAccountObject(s.address, s.data, onDirty)
-	stateObject.deleted = s.deleted
-	return stateObject
-}
-
 // empty returns whether the account is considered empty.
 func (s *stateAccount) empty() bool {
 	return s.Balance().Sign() == 0 && s.data.Nonce == 0 && s.data.Contract == nil

@@ -11,7 +11,7 @@ import (
 	"github.com/idena-network/idena-go/rpc"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,12 +139,18 @@ func (c *Config) KeyStoreDataDir() (string, error) {
 
 func (c *Config) SetApiKey() error {
 	shouldSaveKey := true
+	apiKeyFile := filepath.Join(c.DataDir, apiKeyFileName)
 	if c.RPC.APIKey == "" {
-		apiKeyFile := filepath.Join(c.DataDir, apiKeyFileName)
-		data, _ := ioutil.ReadFile(apiKeyFile)
+		data, err := os.ReadFile(apiKeyFile)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
 		key := strings.TrimSpace(string(data))
 		if key == "" {
-			randomKey, _ := crypto.GenerateKey()
+			randomKey, err := crypto.GenerateKey()
+			if err != nil {
+				return err
+			}
 			key = hex.EncodeToString(crypto.FromECDSA(randomKey)[:16])
 		} else {
 			shouldSaveKey = false
@@ -153,15 +159,19 @@ func (c *Config) SetApiKey() error {
 	}
 
 	if shouldSaveKey {
-		f, err := os.OpenFile(filepath.Join(c.DataDir, apiKeyFileName), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		f, err := os.OpenFile(apiKeyFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 		if err != nil {
 			return err
 		}
-		defer f.Close()
-		_, err = f.WriteString(c.RPC.APIKey)
-		return err
+		if _, err := f.WriteString(c.RPC.APIKey); err != nil {
+			_ = f.Close()
+			return err
+		}
+		if err := f.Close(); err != nil {
+			return err
+		}
 	}
-	return nil
+	return os.Chmod(apiKeyFile, 0600)
 }
 
 func MakeMobileConfig(path string, cfg string) (*Config, error) {
@@ -392,14 +402,17 @@ func loadConfig(configPath string, conf *Config) error {
 		return errors.Errorf("Config file cannot be found, path: %v", configPath)
 	}
 
-	if jsonFile, err := os.Open(configPath); err != nil {
+	jsonFile, err := os.Open(configPath)
+	if err != nil {
 		return errors.Errorf("Config file cannot be opened, path: %v", configPath)
-	} else {
-		byteValue, _ := ioutil.ReadAll(jsonFile)
-		err := json.Unmarshal(byteValue, &conf)
-		if err != nil {
-			return errors.Wrap(err, errors.Errorf("Cannot parse JSON config, path: %v", configPath).Error())
-		}
-		return nil
 	}
+	defer jsonFile.Close()
+	byteValue, err := io.ReadAll(jsonFile)
+	if err != nil {
+		return errors.Wrap(err, errors.Errorf("Cannot read JSON config, path: %v", configPath).Error())
+	}
+	if err := json.Unmarshal(byteValue, &conf); err != nil {
+		return errors.Wrap(err, errors.Errorf("Cannot parse JSON config, path: %v", configPath).Error())
+	}
+	return nil
 }

@@ -2090,15 +2090,3 @@ func (s *StateDB) RawGlobal() []byte {
 	data, _ := global.data.ToBytes()
 	return data
 }
-
-type readCloser struct {
-	r io.Reader
-}
-
-func (rc *readCloser) Read(p []byte) (n int, err error) {
-	return rc.r.Read(p)
-}
-
-func (rc *readCloser) Close() error {
-	return nil
-}

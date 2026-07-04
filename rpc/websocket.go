@@ -78,7 +78,10 @@ func (srv *Server) WebsocketHandler(allowedOrigins []string) http.Handler {
 //
 // Deprecated: use Server.WebsocketHandler
 func NewWSServer(allowedOrigins []string, srv *Server) *http.Server {
-	return &http.Server{Handler: srv.WebsocketHandler(allowedOrigins)}
+	return &http.Server{
+		Handler:           srv.WebsocketHandler(allowedOrigins),
+		ReadHeaderTimeout: DefaultHTTPTimeouts.ReadTimeout,
+	}
 }
 
 // wsHandshakeValidator returns a handler that verifies the origin during the

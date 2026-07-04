@@ -17,20 +17,12 @@ package p256
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"github.com/idena-network/idena-go/crypto/vrf"
 	"github.com/stretchr/testify/require"
 	"math"
 	"testing"
 	"time"
-)
-
-const (
-	// private key in hex
-	privKey = `b02b430d4a9d7120b65038452a6da3f3c716829e5be3665adf934d4798d96ed7`
-	// public key in hex
-	pubKey = `04e4d0dde330c0b8d8d8b1b2071aa75c3e94f200a3d11ca1d908644eee50c8833a816dc0b2d003fc66187ef6750a56e1b3004d32e6159008400ab92f2ded7b4544`
 )
 
 func TestH1(t *testing.T) {
@@ -290,24 +282,6 @@ func flipBit(a []byte, pos int) []byte {
 //		}
 //	}
 //}
-
-func h2i(h string) [32]byte {
-	b, err := hex.DecodeString(h)
-	if err != nil {
-		panic("Invalid hex")
-	}
-	var i [32]byte
-	copy(i[:], b)
-	return i
-}
-
-func h2b(h string) []byte {
-	b, err := hex.DecodeString(h)
-	if err != nil {
-		panic("Invalid hex")
-	}
-	return b
-}
 
 //func Test256VRF(t *testing.T) {
 //

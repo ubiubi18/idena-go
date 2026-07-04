@@ -250,7 +250,7 @@ func (d *Downloader) consumeBlocks(applier blockApplier, term chan interface{}, 
 			if consume(batch) {
 				return
 			}
-			break
+			continue
 		case <-completed:
 			return
 		case <-timeout:

@@ -85,7 +85,7 @@ func Test_GetWords(t *testing.T) {
 	require.Equal(nums[16], w1)
 	require.Equal(nums[17], w2)
 
-	w1, w2, err := GetWords(rnd, 5, dictionarySize, pairCount, 15)
+	_, _, err := GetWords(rnd, 5, dictionarySize, pairCount, 15)
 	require.Error(err, "out of bounds pair index should throw error")
 }
 

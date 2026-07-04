@@ -11,7 +11,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-yamux"
 	"github.com/pkg/errors"
-	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -157,7 +156,7 @@ func (m *ConnManager) DialRandomPeer() (network.Stream, error) {
 	}
 
 	for attempt := 0; attempt < dialPeerAttempts; attempt++ {
-		idx := rand.Intn(len(filteredConns))
+		idx := secureIntn(len(filteredConns))
 		conn := filteredConns[idx]
 
 		if stream, err := m.findOrOpenStream(conn); err == nil {
@@ -310,16 +309,22 @@ func (m *ConnManager) GetRandomPeer(inbound bool) peer.ID {
 		peersMap = m.outboundPeers
 	}
 
+	candidates := make([]peer.ID, 0)
 	for k, s := range peersMap {
 		if s == common.MultiShard {
-			return k
+			candidates = append(candidates, k)
+			continue
 		}
 		if s != m.ownShardId && m.ownShardId != common.MultiShard {
-			return k
+			candidates = append(candidates, k)
+			continue
 		}
 		if m.peersCntFromShard(s) > m.minimalNumberOfPeersFromShard() {
-			return k
+			candidates = append(candidates, k)
 		}
+	}
+	if len(candidates) > 0 {
+		return candidates[secureIntn(len(candidates))]
 	}
 	return ""
 }

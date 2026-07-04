@@ -1,6 +1,7 @@
 package types
 
 import (
+	"github.com/idena-network/idena-go/common"
 	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
@@ -71,4 +72,25 @@ func TestBlockFlag_HasFlag(t *testing.T) {
 func TestBlockCert_Empty(t *testing.T) {
 	var cert *BlockCert
 	require.True(t, cert.Empty())
+}
+
+func TestSavedTransactionFromBytesWithoutTx(t *testing.T) {
+	original := &SavedTransaction{
+		BlockHash: common.Hash{0x1},
+		Timestamp: 42,
+		FeePerGas: big.NewInt(7),
+	}
+	data, err := original.ToBytes()
+	require.NoError(t, err)
+
+	var decoded SavedTransaction
+	require.NotPanics(t, func() {
+		err = decoded.FromBytes(data)
+	})
+
+	require.NoError(t, err)
+	require.Nil(t, decoded.Tx)
+	require.Equal(t, original.BlockHash, decoded.BlockHash)
+	require.Equal(t, original.Timestamp, decoded.Timestamp)
+	require.Equal(t, original.FeePerGas, decoded.FeePerGas)
 }

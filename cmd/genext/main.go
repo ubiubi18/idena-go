@@ -71,11 +71,11 @@ func main() {
 		}
 		identityStateDb := dbm.NewPrefixDB(db, prefix)
 
-		if err := os.Mkdir("bindata", 0777); err != nil {
+		if err := os.Mkdir("bindata", 0750); err != nil {
 			return err
 		}
 
-		file, err := os.Create("bindata/statedb.tar")
+		file, err := os.OpenFile("bindata/statedb.tar", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
 			return err
 		}

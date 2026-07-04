@@ -1,6 +1,11 @@
 package deferredtx
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
+	"testing"
+
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
@@ -13,7 +18,6 @@ import (
 	"github.com/idena-network/idena-go/vm/wasm"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 var fakeVmError error
@@ -62,6 +66,41 @@ func (f fakeTxPool) GetPendingTransaction(bool, bool, common.ShardId, bool) []*t
 
 func (f fakeTxPool) IsSyncing() bool {
 	return false
+}
+
+func TestJobPersistReturnsOpenFileError(t *testing.T) {
+	datadir := filepath.Join(t.TempDir(), "not-a-dir")
+	require.NoError(t, os.WriteFile(datadir, []byte("file"), 0600))
+
+	job := &Job{
+		datadir: datadir,
+		txs:     new(DeferredTxs),
+	}
+
+	require.Error(t, job.persist())
+}
+
+func TestJobOpenFileCreatesPrivateStorage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose POSIX file mode bits")
+	}
+
+	datadir := t.TempDir()
+	job := &Job{datadir: datadir}
+
+	file, err := job.openFile()
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	assertMode(t, filepath.Join(datadir, Folder), 0700)
+	assertMode(t, filepath.Join(datadir, Folder, "txs"), 0600)
+}
+
+func assertMode(t *testing.T, path string, mode os.FileMode) {
+	t.Helper()
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, mode, info.Mode().Perm())
 }
 
 func TestJob_tryLater(t *testing.T) {

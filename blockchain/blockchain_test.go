@@ -16,6 +16,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/core/validators"
 	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/crypto/vrf/p256"
 	"github.com/idena-network/idena-go/tests"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -166,10 +167,8 @@ func Test_ApplyBlockRewards2(t *testing.T) {
 }
 
 func Test_ApplyBlockRewards_proposerZeroStake(t *testing.T) {
-	var identities []common.Address
 	alloc := make(map[common.Address]config.GenesisAllocation)
 	addr := common.Address{0x1}
-	identities = append(identities, addr)
 	alloc[addr] = config.GenesisAllocation{
 		State: uint8(state.Verified),
 		Stake: ConvertToInt(decimal.RequireFromString("10")),
@@ -644,7 +643,6 @@ func Test_applyNextBlockFee(t *testing.T) {
 	chain.applyNextBlockFee(appState, usedGas)
 	require.Equal(t, big.NewInt(10536470413208007), appState.State.FeePerGas())
 
-	block = generateBlock(6, 0)
 	chain.applyNextBlockFee(appState, 0)
 	// 0.01 / networkSize, where networkSize is 0, feePerGas = 0.01 DNA
 	require.Equal(t, new(big.Int).Div(common.DnaBase, big.NewInt(100)), appState.State.FeePerGas())
@@ -662,6 +660,15 @@ func Test_applyVrfProposerThreshold(t *testing.T) {
 
 	chain.GenerateBlocks(100, 0)
 	require.Equal(t, 0.5, chain.appState.State.VrfProposerThreshold())
+}
+
+func TestValidateProposerProofReturnsVrfErrorForMalformedProof(t *testing.T) {
+	chain, _, _, _ := NewTestBlockchain(true, nil)
+	defer chain.SecStore().Destroy()
+
+	err := chain.ValidateProposerProof([]byte{0x1, 0x2, 0x3}, chain.SecStore().GetPubKey())
+
+	require.ErrorIs(t, err, p256.ErrInvalidVRF)
 }
 
 type txWithTimestamp struct {

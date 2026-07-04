@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/idena-network/idena-go/common"
 	peer2 "github.com/libp2p/go-libp2p/core/peer"
-	"math/rand"
 	"sync"
 	"time"
 )
@@ -100,7 +99,7 @@ func (ps *peerSet) shouldSendToPeer(p *protoPeer, msgShardId common.ShardId, pee
 	if msgShardId == common.MultiShard || p.shardId == msgShardId || p.shardId == common.MultiShard || peersCnt < 4 || highPriority {
 		return true
 	}
-	rnd := rand.Float32()
+	rnd := secureFloat32()
 	return rnd > 1-1.8/float32(peersCnt)
 }
 

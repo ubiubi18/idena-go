@@ -14,9 +14,8 @@ var (
 	preliminaryIdentityStateDbPrefixKey = []byte{0x3}
 
 	//state prefixes
-	stateDbPrefixBytes            = []byte{0x1}
-	identityStateDbPrefixBytes    = []byte{0x2}
-	preliminaryStateDbPrefixBytes = []byte{0x3}
+	stateDbPrefixBytes         = []byte{0x1}
+	identityStateDbPrefixBytes = []byte{0x2}
 
 	//state db prefixes and keys
 	addressPrefix                 = []byte{0x1}

@@ -7,7 +7,6 @@ import (
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/node"
 	"github.com/urfave/cli"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -124,14 +123,12 @@ func main() {
 func getLogFileHandler(cfg *config.Config, logFileSize int) (log.Handler, error) {
 	path := filepath.Join(cfg.DataDir, LogDir)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err := os.MkdirAll(path, 0755); err != nil {
+		if err := os.MkdirAll(path, 0700); err != nil {
 			return nil, err
 		}
 	}
 
-	fileHandler, _ := log.RotatingFileHandler(filepath.Join(path, "output.log"), uint32(logFileSize*1024), log.TerminalFormat(false))
-
-	return fileHandler, nil
+	return log.RotatingFileHandler(filepath.Join(path, "output.log"), uint32(logFileSize*1024), log.TerminalFormat(false))
 }
 
 func dropOldDirOnFork(cfg *config.Config) error {
@@ -139,7 +136,7 @@ func dropOldDirOnFork(cfg *config.Config) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return writeVersion(cfg)
 	}
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -166,13 +163,8 @@ func dropOldDirOnFork(cfg *config.Config) error {
 }
 
 func writeVersion(cfg *config.Config) error {
-	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.DataDir, 0700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(filepath.Join(cfg.DataDir, VersionFile), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	_, err = f.WriteString(version)
-	return err
+	return os.WriteFile(filepath.Join(cfg.DataDir, VersionFile), []byte(version), 0600)
 }

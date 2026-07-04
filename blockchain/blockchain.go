@@ -2530,6 +2530,9 @@ func (chain *Blockchain) ValidateProposerProof(proof []byte, pubKeyData []byte) 
 	}
 
 	h, err := verifier.ProofToHash(chain.getProposerData(), proof)
+	if err != nil {
+		return err
+	}
 
 	vrfThreshold := new(big.Float).SetFloat64(chain.appState.State.VrfProposerThreshold())
 	proposerAddr := crypto.PubkeyToAddress(*pubKey)

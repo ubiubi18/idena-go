@@ -705,6 +705,7 @@ func ExampleDecode() {
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	} else {
+		_ = s.private
 		fmt.Printf("Decoded value: %#v\n", s)
 	}
 	// Output:

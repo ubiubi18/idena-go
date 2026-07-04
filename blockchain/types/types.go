@@ -378,8 +378,8 @@ func (s *SavedTransaction) FromBytes(data []byte) error {
 	if err := proto.Unmarshal(data, protoObj); err != nil {
 		return err
 	}
-	tx := new(Transaction)
-	if protoObj != nil {
+	if protoObj.Tx != nil {
+		tx := new(Transaction)
 		s.Tx = tx.FromProto(protoObj.Tx)
 	}
 	s.Timestamp = protoObj.Timestamp

@@ -18,6 +18,14 @@ package rpc
 
 import "testing"
 
+func TestNewWSServerSetsReadHeaderTimeout(t *testing.T) {
+	server := NewWSServer(nil, NewServer(""))
+
+	if server.ReadHeaderTimeout != DefaultHTTPTimeouts.ReadTimeout {
+		t.Fatalf("ReadHeaderTimeout = %s, want %s", server.ReadHeaderTimeout, DefaultHTTPTimeouts.ReadTimeout)
+	}
+}
+
 func TestWSGetConfigNoAuth(t *testing.T) {
 	config, err := wsGetConfig("ws://example.com:1234", "")
 	if err != nil {

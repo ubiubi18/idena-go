@@ -17,7 +17,6 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"math"
-	"math/rand"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -305,7 +304,7 @@ func (p *protoPeer) broadcast() {
 	}
 	for {
 		if p.maxDelayMs > 0 {
-			delay := time.Duration(rand.Int31n(int32(p.maxDelayMs)))
+			delay := time.Duration(secureIntn(p.maxDelayMs))
 			time.Sleep(delay * time.Millisecond)
 		}
 		select {

@@ -94,9 +94,7 @@ func (vm *WasmVM) Run(tx *types.Transaction, wasmGasLimit uint64) *types.TxRecei
 		events = env.InternalCommit()
 	}
 
-	if wasmGasLimit >= 0 {
-		usedGas = math.Min(usedGas, wasmGasLimit)
-	}
+	usedGas = math.Min(usedGas, wasmGasLimit)
 
 	usedGas = costs.WasmGasToGas(usedGas)
 

@@ -36,3 +36,16 @@ func Test_getPrivateKeysPackage(t *testing.T) {
 		require.Equal(t, dataToAssert, result)
 	}
 }
+
+func TestEncryptPrivateKeysPackageSkipsInvalidPublicKey(t *testing.T) {
+	key1, _ := crypto.GenerateKey()
+	key2, _ := crypto.GenerateKey()
+	publicEncKey := ecies.ImportECDSA(key1)
+	privateEncKey := ecies.ImportECDSA(key2)
+
+	encryptedData := EncryptPrivateKeysPackage(publicEncKey, privateEncKey, [][]byte{{0x1, 0x2, 0x3}})
+	encryptedKey, err := getEncryptedKeyFromPackage(publicEncKey, encryptedData, 0)
+
+	require.NoError(t, err)
+	require.Empty(t, encryptedKey)
+}

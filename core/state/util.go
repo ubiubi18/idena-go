@@ -3,7 +3,6 @@ package state
 import (
 	"archive/tar"
 	"io"
-	"io/ioutil"
 	"strconv"
 
 	"github.com/cosmos/iavl"
@@ -17,7 +16,8 @@ import (
 )
 
 const (
-	SnapshotBlockSize = 10000
+	SnapshotBlockSize     = 10000
+	MaxSnapshotChunkBytes = 64 * 1024 * 1024
 )
 
 func validationTxBitMask(txType types.TxType) byte {
@@ -112,7 +112,11 @@ func ReadTreeFrom2(pdb *dbm.PrefixDB, height uint64, root common.Hash, from io.R
 		if header.Typeflag == tar.TypeDir {
 			continue
 		}
-		if data, err := ioutil.ReadAll(tr); err != nil {
+		if header.Size < 0 || header.Size > MaxSnapshotChunkBytes {
+			common.ClearDb(pdb)
+			return errors.Errorf("snapshot chunk %q size %d exceeds limit %d", header.Name, header.Size, MaxSnapshotChunkBytes)
+		}
+		if data, err := io.ReadAll(tr); err != nil {
 			common.ClearDb(pdb)
 			return err
 		} else {

@@ -15,7 +15,8 @@ GO_RUNNER="${IDENA_GO_DIR}/scripts/run-go-toolchain.sh"
 
 if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
   echo "Rust toolchain is missing. Install rustup first:" >&2
-  echo "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal" >&2
+  echo "brew install rustup-init" >&2
+  echo "rustup-init -y --profile minimal" >&2
   exit 1
 fi
 
