@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Get Sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Go
         uses: actions/setup-go@v6
@@ -52,6 +52,9 @@ jobs:
           fi
           echo "ASSET_NAME=${asset_name}" >> "$GITHUB_ENV"
 
+      - name: Vet
+        run: go vet ./...
+
       - name: Test
         run: go test -v ./...
 
@@ -69,7 +72,7 @@ jobs:
           go build -ldflags "-X main.version=${GIT_TAG}" -o="builds/${ASSET_NAME}"
 
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: true
@@ -82,7 +85,13 @@ jobs:
         goos: [linux]
         goarch: [arm64]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.26.4
+          cache: true
 
       - name: Get tag
         run: |
@@ -100,13 +109,25 @@ jobs:
           asset_name="idena-node-linux-aarch64-${tag}"
           echo "ASSET_NAME=${asset_name}" >> "$GITHUB_ENV"
 
-      - uses: wangyoucao577/go-release-action@v1.55
+      - name: Install cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu
+
+      - name: Build
+        env:
+          CGO_ENABLED: 1
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CC: aarch64-linux-gnu-gcc
+          CC_FOR_TARGET: aarch64-unknown-linux-gnu
+        run: |
+          mkdir -p builds
+          go build -ldflags "-X main.version=${GIT_TAG}" -o="builds/${ASSET_NAME}"
+
+      - name: Release
+        uses: softprops/action-gh-release@v3
         with:
-          pre_command: "apt-get update && apt-get -y install gcc-aarch64-linux-gnu && export CGO_ENABLED=1 && export CC=aarch64-linux-gnu-gcc && CC_FOR_TARGET=aarch64-unknown-linux-gnu"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          goos: ${{ matrix.goos }}
-          goarch: ${{ matrix.goarch }}
-          goversion: 1.26.4
-          ldflags: "-X main.version=${{ env.GIT_TAG }}"
-          binary_name: "idena-node"
-          asset_name: ${{ env.ASSET_NAME }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: true
+          files: builds/${{ env.ASSET_NAME }}

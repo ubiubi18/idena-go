@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Get Sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Go
         uses: actions/setup-go@v6
@@ -25,6 +25,9 @@ jobs:
       - name: Format
         shell: bash
         run: test -z "$(gofmt -l $(git ls-files '*.go'))"
+
+      - name: Vet
+        run: go vet ./...
 
       - name: Test
         run: go test -v ./...

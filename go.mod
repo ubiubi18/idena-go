@@ -42,7 +42,7 @@ require (
 )
 
 require (
-	github.com/idena-network/idena-wasm-binding v0.0.0-20260702064506-6da8d9ef0bc1
+	github.com/idena-network/idena-wasm-binding v0.0.0-20260703133323-47b198d9b194
 	github.com/ipfs/boxo v0.41.0
 	github.com/libp2p/go-libp2p v0.48.0
 )
@@ -259,6 +259,7 @@ require (
 	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
+	golang.org/x/vuln v1.5.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
@@ -272,3 +273,5 @@ replace github.com/cosmos/iavl => github.com/idena-network/iavl v0.12.3-0.202112
 replace github.com/idena-network/idena-wasm-binding => github.com/ubiubi18/idena-wasm-binding v0.0.0-20260703133323-47b198d9b194
 
 go 1.26.4
+
+tool golang.org/x/vuln/cmd/govulncheck
