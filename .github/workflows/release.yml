@@ -13,44 +13,30 @@ defaults:
     shell: bash
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        go-version: [1.26.4]
-        os: ["ubuntu-24.04", "windows-latest", "macos-latest"]
-    runs-on: ${{ matrix.os }}
-
+  preflight:
+    name: Release preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
-      - name: Get Sources
-        uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - name: Install Go
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: 1.26.5
           cache: true
 
-      - name: Get tag
+      - name: Validate tag
         run: |
-          gitTag="${GITHUB_REF#refs/tags/}"
-          if [[ ! "${gitTag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
-            echo "Unsupported release tag: ${gitTag}" >&2
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "Unsupported release tag: ${GITHUB_REF_NAME}" >&2
             exit 1
           fi
-          echo "GIT_TAG=${gitTag#v}" >> "$GITHUB_ENV"
 
-      - name: Get asset name
-        id: asset
-        run: |
-          tag="${GIT_TAG}"
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            asset_name="idena-node-linux-${tag}"
-          elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            asset_name="idena-node-mac-${tag}"
-          else
-            asset_name="idena-node-win-${tag}.exe"
-          fi
-          echo "ASSET_NAME=${asset_name}" >> "$GITHUB_ENV"
+      - name: Verify modules
+        run: go mod verify
+
+      - name: Format
+        run: test -z "$(gofmt -l $(git ls-files '*.go'))"
 
       - name: Vet
         run: go vet ./...
@@ -59,75 +45,77 @@ jobs:
         run: go test -v ./...
 
       - name: Vulnerability scan
-        if: runner.os == 'Linux'
         run: ./scripts/govulncheck-filter.sh
 
       - name: Memory IPFS contract build
-        if: runner.os == 'Linux'
         run: ./scripts/check-memory-ipfs-build.sh
 
-      - name: Build
-        run: |
-          mkdir -p builds
-          go build -ldflags "-X main.version=${GIT_TAG}" -o="builds/${ASSET_NAME}"
-
-      - name: Release
-        uses: softprops/action-gh-release@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          draft: true
-          files: builds/${{ env.ASSET_NAME }}
-
-  build-linux-aarch64:
-    runs-on: ubuntu-24.04
+  build:
+    name: ${{ matrix.build }}
+    needs: preflight
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
+      fail-fast: false
       matrix:
-        goos: [linux]
-        goarch: [arm64]
-    steps:
-      - uses: actions/checkout@v7
+        include:
+          - build: linux-x64
+            os: ubuntu-24.04
+            asset_prefix: idena-node-linux
+            extension: ''
+          - build: linux-arm64
+            os: ubuntu-24.04-arm
+            asset_prefix: idena-node-linux-aarch64
+            extension: ''
+          - build: windows-x64
+            os: windows-2025
+            asset_prefix: idena-node-win
+            extension: .exe
+          - build: macos-x64
+            os: macos-15-intel
+            asset_prefix: idena-node-mac
+            extension: ''
+          - build: macos-arm64
+            os: macos-15
+            asset_prefix: idena-node-mac-arm64
+            extension: ''
 
-      - name: Install Go
-        uses: actions/setup-go@v6
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: 1.26.4
+          go-version: 1.26.5
           cache: true
 
-      - name: Get tag
-        run: |
-          gitTag="${GITHUB_REF#refs/tags/}"
-          if [[ ! "${gitTag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
-            echo "Unsupported release tag: ${gitTag}" >&2
-            exit 1
-          fi
-          echo "GIT_TAG=${gitTag#v}" >> "$GITHUB_ENV"
-
       - name: Get asset name
-        id: asset
+        env:
+          ASSET_PREFIX: ${{ matrix.asset_prefix }}
+          EXTENSION: ${{ matrix.extension }}
         run: |
-          tag="${GIT_TAG}"
-          asset_name="idena-node-linux-aarch64-${tag}"
+          version="${GITHUB_REF_NAME#v}"
+          asset_name="${ASSET_PREFIX}-${version}${EXTENSION}"
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
           echo "ASSET_NAME=${asset_name}" >> "$GITHUB_ENV"
 
-      - name: Install cross compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu
+      - name: Verify modules
+        run: go mod verify
 
       - name: Build
         env:
           CGO_ENABLED: 1
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CC: aarch64-linux-gnu-gcc
-          CC_FOR_TARGET: aarch64-unknown-linux-gnu
         run: |
           mkdir -p builds
-          go build -ldflags "-X main.version=${GIT_TAG}" -o="builds/${ASSET_NAME}"
+          go build -mod=readonly -trimpath -buildvcs=true \
+            -ldflags "-s -w -X main.version=${VERSION}" \
+            -o "builds/${ASSET_NAME}" .
+          openssl dgst -sha256 -r "builds/${ASSET_NAME}" > "builds/${ASSET_NAME}.sha256"
 
       - name: Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@7c4723f7a335432393329f8f1c564994ce50185d # v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: true
-          files: builds/${{ env.ASSET_NAME }}
+          files: |
+            builds/${{ env.ASSET_NAME }}
+            builds/${{ env.ASSET_NAME }}.sha256

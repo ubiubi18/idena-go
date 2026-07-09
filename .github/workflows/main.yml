@@ -1,28 +1,52 @@
 name: Build Idena
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.build }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
+      fail-fast: false
       matrix:
-        go-version: ['1.26.4']
+        include:
+          - build: linux-x64
+            os: ubuntu-24.04
+          - build: linux-arm64
+            os: ubuntu-24.04-arm
+          - build: windows-x64
+            os: windows-2025
+          - build: macos-x64
+            os: macos-15-intel
+          - build: macos-arm64
+            os: macos-15
 
     steps:
       - name: Get Sources
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: 1.26.5
           cache: true
 
+      - name: Verify modules
+        run: go mod verify
+
       - name: Format
+        if: matrix.build == 'linux-x64'
         shell: bash
         run: test -z "$(gofmt -l $(git ls-files '*.go'))"
 
@@ -33,10 +57,22 @@ jobs:
         run: go test -v ./...
 
       - name: Vulnerability scan
+        if: matrix.build == 'linux-x64'
         run: ./scripts/govulncheck-filter.sh
 
       - name: Memory IPFS contract build
+        if: matrix.build == 'linux-x64'
         run: ./scripts/check-memory-ipfs-build.sh
 
       - name: Build
-        run: go build ./...
+        run: go build -mod=readonly -trimpath ./...
+
+      - name: Build container
+        if: matrix.build == 'linux-x64'
+        run: docker build --build-arg VERSION=ci -t idena-node:ci .
+
+      - name: Smoke test container
+        if: matrix.build == 'linux-x64'
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' idena-node:ci)" = "10001:10001"
+          docker run --rm idena-node:ci --version

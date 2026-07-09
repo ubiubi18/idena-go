@@ -1,0 +1,6 @@
+.git
+.github
+builds
+datadir
+*.log
+*.test
