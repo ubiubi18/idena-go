@@ -109,7 +109,7 @@ jobs:
           go build -mod=readonly -trimpath -buildvcs=true \
             -ldflags "-s -w -X main.version=${VERSION}" \
             -o "builds/${ASSET_NAME}" .
-          openssl dgst -sha256 -r "builds/${ASSET_NAME}" > "builds/${ASSET_NAME}.sha256"
+          (cd builds && openssl dgst -sha256 -r "${ASSET_NAME}" > "${ASSET_NAME}.sha256")
 
       - name: Release
         uses: softprops/action-gh-release@7c4723f7a335432393329f8f1c564994ce50185d # v3
