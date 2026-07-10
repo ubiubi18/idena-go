@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"time"
 
@@ -154,6 +155,9 @@ func (l *logger) New(ctx ...interface{}) Logger {
 
 func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	normalizedSuffix := normalize(suffix)
+	if len(prefix) > math.MaxInt-len(normalizedSuffix) {
+		return []interface{}{errorKey, "Context is too large"}
+	}
 	newCtx := make([]interface{}, len(prefix)+len(normalizedSuffix))
 	n := copy(newCtx, prefix)
 	copy(newCtx[n:], normalizedSuffix)
@@ -207,6 +211,9 @@ func normalize(ctx []interface{}) []interface{} {
 	// that things are the right length and users can fix bugs
 	// when they see the output looks wrong
 	if len(ctx)%2 != 0 {
+		if len(ctx) > math.MaxInt-3 {
+			return []interface{}{errorKey, "Context is too large"}
+		}
 		ctx = append(ctx, nil, errorKey, "Normalized odd number of arguments by adding nil")
 	}
 
@@ -232,6 +239,9 @@ type Lazy struct {
 type Ctx map[string]interface{}
 
 func (c Ctx) toArray() []interface{} {
+	if len(c) > math.MaxInt/2 {
+		return []interface{}{errorKey, "Context is too large"}
+	}
 	arr := make([]interface{}, len(c)*2)
 
 	i := 0

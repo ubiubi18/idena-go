@@ -38,6 +38,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"math"
 	"math/big"
 )
 
@@ -122,7 +123,11 @@ func (prv *PrivateKey) GenerateShared(pub *PublicKey, skLen, macLen int) (sk []b
 	if prv.PublicKey.Curve != pub.Curve {
 		return nil, ErrInvalidCurve
 	}
-	if skLen+macLen > MaxSharedKeyLength(pub) {
+	if skLen < 0 || macLen < 0 || skLen > math.MaxInt-macLen {
+		return nil, ErrSharedKeyTooBig
+	}
+	sharedLen := skLen + macLen
+	if sharedLen > MaxSharedKeyLength(pub) {
 		return nil, ErrSharedKeyTooBig
 	}
 
@@ -131,7 +136,7 @@ func (prv *PrivateKey) GenerateShared(pub *PublicKey, skLen, macLen int) (sk []b
 		return nil, ErrSharedKeyIsPointAtInfinity
 	}
 
-	sk = make([]byte, skLen+macLen)
+	sk = make([]byte, sharedLen)
 	skBytes := x.Bytes()
 	copy(sk[len(sk)-len(skBytes):], skBytes)
 	return sk, nil
@@ -169,7 +174,11 @@ func concatKDF(hash hash.Hash, z, s1 []byte, kdLen int) (k []byte, err error) {
 		s1 = make([]byte, 0)
 	}
 
-	reps := ((kdLen + 7) * 8) / (hash.BlockSize() * 8)
+	blockSize := hash.BlockSize()
+	if kdLen < 0 || kdLen > math.MaxInt-7 || blockSize <= 0 {
+		return nil, ErrKeyDataTooLong
+	}
+	reps := (kdLen + 7) / blockSize
 	if big.NewInt(int64(reps)).Cmp(big2To32M1) > 0 {
 		fmt.Println(big2To32M1)
 		return nil, ErrKeyDataTooLong
@@ -215,6 +224,12 @@ func symEncrypt(rand io.Reader, params *ECIESParams, key, m []byte) (ct []byte, 
 	if err != nil {
 		return
 	}
+	if params.BlockSize <= 0 || params.BlockSize != c.BlockSize() {
+		return nil, ErrInvalidParams
+	}
+	if len(m) > math.MaxInt-params.BlockSize {
+		return nil, ErrInvalidMessage
+	}
 
 	iv, err := generateIV(params, rand)
 	if err != nil {
@@ -234,6 +249,9 @@ func symDecrypt(params *ECIESParams, key, ct []byte) (m []byte, err error) {
 	c, err := params.Cipher(key)
 	if err != nil {
 		return
+	}
+	if params.BlockSize <= 0 || params.BlockSize != c.BlockSize() || len(ct) < params.BlockSize {
+		return nil, ErrInvalidMessage
 	}
 
 	ctr := cipher.NewCTR(c, ct[:params.BlockSize])
@@ -255,6 +273,9 @@ func Encrypt(rand io.Reader, pub *PublicKey, m, s1, s2 []byte) (ct []byte, err e
 			err = ErrUnsupportedECIESParameters
 			return
 		}
+	}
+	if params.Hash == nil || params.Cipher == nil || params.BlockSize <= 0 || params.KeyLen <= 0 {
+		return nil, ErrInvalidParams
 	}
 	R, err := GenerateKey(rand, pub.Curve, params)
 	if err != nil {
@@ -284,7 +305,15 @@ func Encrypt(rand io.Reader, pub *PublicKey, m, s1, s2 []byte) (ct []byte, err e
 	d := messageTag(params.Hash, Km, em, s2)
 
 	Rb := elliptic.Marshal(pub.Curve, R.PublicKey.X, R.PublicKey.Y)
-	ct = make([]byte, len(Rb)+len(em)+len(d))
+	if len(Rb) > math.MaxInt-len(em) {
+		return nil, ErrInvalidMessage
+	}
+	ciphertextLen := len(Rb) + len(em)
+	if ciphertextLen > math.MaxInt-len(d) {
+		return nil, ErrInvalidMessage
+	}
+	ciphertextLen += len(d)
+	ct = make([]byte, ciphertextLen)
 	copy(ct, Rb)
 	copy(ct[len(Rb):], em)
 	copy(ct[len(Rb)+len(em):], d)
@@ -303,6 +332,9 @@ func (prv *PrivateKey) Decrypt(c, s1, s2 []byte) (m []byte, err error) {
 			return
 		}
 	}
+	if params.Hash == nil || params.Cipher == nil || params.BlockSize <= 0 || params.KeyLen <= 0 {
+		return nil, ErrInvalidParams
+	}
 	hash := params.Hash()
 
 	var (
@@ -315,7 +347,7 @@ func (prv *PrivateKey) Decrypt(c, s1, s2 []byte) (m []byte, err error) {
 	switch c[0] {
 	case 2, 3, 4:
 		rLen = (prv.PublicKey.Curve.Params().BitSize + 7) / 4
-		if len(c) < (rLen + hLen + 1) {
+		if rLen > math.MaxInt-hLen || rLen+hLen > math.MaxInt-params.BlockSize || len(c) < rLen+hLen+params.BlockSize {
 			err = ErrInvalidMessage
 			return
 		}

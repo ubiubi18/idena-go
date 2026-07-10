@@ -39,6 +39,7 @@ import (
 	"fmt"
 	"github.com/idena-network/idena-go/common"
 	"github.com/stretchr/testify/require"
+	"math"
 	"math/big"
 	"testing"
 
@@ -259,6 +260,33 @@ func TestEncryptDecrypt(t *testing.T) {
 	if err == nil {
 		fmt.Println("ecies: encryption should not have succeeded")
 		t.FailNow()
+	}
+}
+
+func TestGenerateSharedRejectsInvalidLengths(t *testing.T) {
+	prv, err := GenerateKey(rand.Reader, DefaultCurve, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, lengths := range [][2]int{{-1, 0}, {0, -1}, {math.MaxInt, 1}} {
+		if _, err := prv.GenerateShared(&prv.PublicKey, lengths[0], lengths[1]); err != ErrSharedKeyTooBig {
+			t.Fatalf("GenerateShared(%d, %d) error = %v, want %v", lengths[0], lengths[1], err, ErrSharedKeyTooBig)
+		}
+	}
+}
+
+func TestEncryptRejectsInvalidBlockSize(t *testing.T) {
+	prv, err := GenerateKey(rand.Reader, DefaultCurve, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := *prv.Params
+	params.BlockSize++
+	prv.Params = &params
+
+	if _, err := Encrypt(rand.Reader, &prv.PublicKey, []byte("message"), nil, nil); err != ErrInvalidParams {
+		t.Fatalf("Encrypt() error = %v, want %v", err, ErrInvalidParams)
 	}
 }
 
