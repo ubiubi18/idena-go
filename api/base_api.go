@@ -12,6 +12,7 @@ import (
 	"github.com/idena-network/idena-go/ipfs"
 	"github.com/idena-network/idena-go/keystore"
 	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/rpc"
 	"github.com/idena-network/idena-go/secstore"
 	"github.com/shopspring/decimal"
 )
@@ -83,7 +84,7 @@ func (api *BaseApi) sendTx(ctx context.Context, from common.Address, to *common.
 }
 
 func (api *BaseApi) sendInternalTx(ctx context.Context, tx *types.Transaction) (common.Hash, error) {
-	log.Info("Sending new tx", "ip", ctx.Value("remote"), "type", tx.Type, "hash", tx.Hash().Hex(), "nonce", tx.AccountNonce, "epoch", tx.Epoch)
+	log.Info("Sending new tx", "ip", rpc.PeerInfoFromContext(ctx).RemoteAddr, "type", tx.Type, "hash", tx.Hash().Hex(), "nonce", tx.AccountNonce, "epoch", tx.Epoch)
 
 	if err := api.txpool.AddInternalTx(tx); err != nil {
 		return common.Hash{}, err

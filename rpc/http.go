@@ -233,16 +233,12 @@ func (srv *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// All checks passed, create a codec that reads direct from the request body
 	// untilEOF and writes the response to w and order the server to process a
 	// single request.
-	ctx := r.Context()
-	ctx = context.WithValue(ctx, "remote", r.RemoteAddr)
-	ctx = context.WithValue(ctx, "scheme", r.Proto)
-	ctx = context.WithValue(ctx, "local", r.Host)
-	if ua := r.Header.Get("User-Agent"); ua != "" {
-		ctx = context.WithValue(ctx, "User-Agent", ua)
-	}
-	if origin := r.Header.Get("Origin"); origin != "" {
-		ctx = context.WithValue(ctx, "Origin", origin)
-	}
+	peerInfo := PeerInfo{Transport: "http", RemoteAddr: r.RemoteAddr}
+	peerInfo.HTTP.Version = r.Proto
+	peerInfo.HTTP.Host = r.Host
+	peerInfo.HTTP.UserAgent = r.Header.Get("User-Agent")
+	peerInfo.HTTP.Origin = r.Header.Get("Origin")
+	ctx := context.WithValue(r.Context(), peerInfoContextKey{}, peerInfo)
 
 	body := io.LimitReader(r.Body, maxRequestContentLength)
 	codec := NewJSONCodec(&httpReadWriteNopCloser{body, w})

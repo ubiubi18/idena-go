@@ -31,6 +31,26 @@ import (
 
 const MetadataApi = "rpc"
 
+// PeerInfo contains information about the remote end of an RPC connection.
+type PeerInfo struct {
+	Transport  string
+	RemoteAddr string
+	HTTP       struct {
+		Version   string
+		UserAgent string
+		Origin    string
+		Host      string
+	}
+}
+
+type peerInfoContextKey struct{}
+
+// PeerInfoFromContext returns connection metadata for the current RPC call.
+func PeerInfoFromContext(ctx context.Context) PeerInfo {
+	info, _ := ctx.Value(peerInfoContextKey{}).(PeerInfo)
+	return info
+}
+
 // CodecOption specifies which type of messages this codec supports
 type CodecOption int
 

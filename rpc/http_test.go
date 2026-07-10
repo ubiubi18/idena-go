@@ -17,11 +17,55 @@
 package rpc
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+type PeerInfoService struct{}
+
+func (PeerInfoService) Info(ctx context.Context) PeerInfo {
+	return PeerInfoFromContext(ctx)
+}
+
+func TestHTTPPeerInfo(t *testing.T) {
+	server := NewServer("")
+	defer server.Stop()
+	if err := server.RegisterName("test", PeerInfoService{}); err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "http://node.example", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"test_info","params":[]}`))
+	request.Header.Set("content-type", contentType)
+	request.Header.Set("User-Agent", "idena-test-client")
+	request.Header.Set("Origin", "https://app.example")
+	request.RemoteAddr = "192.0.2.1:1234"
+	request.Host = "node.example"
+	request.Proto = "HTTP/2.0"
+
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected response status: %d", recorder.Code)
+	}
+
+	var response struct {
+		Result PeerInfo `json:"result"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Result.Transport != "http" || response.Result.RemoteAddr != request.RemoteAddr {
+		t.Fatalf("unexpected peer info: %+v", response.Result)
+	}
+	if response.Result.HTTP.Version != request.Proto || response.Result.HTTP.Host != request.Host ||
+		response.Result.HTTP.UserAgent != "idena-test-client" || response.Result.HTTP.Origin != "https://app.example" {
+		t.Fatalf("unexpected HTTP peer info: %+v", response.Result.HTTP)
+	}
+}
 
 func TestHTTPErrorResponseWithDelete(t *testing.T) {
 	testHTTPErrorResponse(t, http.MethodDelete, contentType, "", http.StatusMethodNotAllowed)
