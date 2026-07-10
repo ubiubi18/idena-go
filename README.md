@@ -6,7 +6,7 @@ Golang implementation of the Idena network node
 
 ## Building the source
 
-Building `idena-go` required a Go (version 1.16 or later) and a C compiler. `idena-go` uses Go modules as a dependency manager. 
+Building `idena-go` requires Go 1.26.5 and a C compiler. `idena-go` uses Go modules as a dependency manager.
 Once the dependencies are installed, run
 
 ```shell
@@ -25,7 +25,7 @@ To connect to idena `experimental mainnet` network run executable without parame
 * `--rpcport` RPC listening port (default `9009`)
 * `--ipfsport` IPFS P2P port (default `40405`)
 * `--ipfsportstatic` Prevent changing IPFS port (default `false`)
-* `--ipfsrouting` IPFS routing mode (default `dhtclient`; server-capable modes `dht` and `dhtserver` require `IDENA_ALLOW_IPFS_DHT_SERVER=1`)
+* `--ipfsrouting` IPFS routing mode (default `dhtclient`; unsafe or server-capable modes require `IDENA_ALLOW_UNSAFE_IPFS_ROUTING=1`)
 * `--ipfsbootnode` Set custom bootstrap node
 * `--fast` Use fast sync (default `true`)
 * `--verbosity` Log verbosity (default `3` - `Info`)
@@ -40,6 +40,9 @@ To connect to idena `experimental mainnet` network run executable without parame
 
 
 Custom json configuration can be used if `--config=<config file name>` parameter is specified. Use `server` IPFS profile if you run `idena-go` on VPS to prevent local network scanning.
+
+New IPFS repositories use Kubo's supported `flatfs` datastore. Existing repositories keep their configured datastore and are never migrated automatically. Operators with an older Badger v1 repository should plan an export/import migration before Kubo removes Badger support; back up the IPFS data directory before any manual migration.
+
 ```json
 {
   "DataDir": "datadir",

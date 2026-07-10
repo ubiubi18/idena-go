@@ -3,15 +3,19 @@
 package ipfs
 
 import (
-	"github.com/google/tink/go/subtle/random"
-	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/common/eventbus"
-	"github.com/idena-network/idena-go/config"
-	"github.com/stretchr/testify/require"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/google/tink/go/subtle/random"
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/config"
+	ipfsConf "github.com/ipfs/kubo/config"
+	"github.com/ipfs/kubo/repo/fsrepo"
+	"github.com/stretchr/testify/require"
 )
 
 var proxy Proxy
@@ -58,6 +62,71 @@ func TestWriteSwarmKeyCreatesPrivateFile(t *testing.T) {
 	info, err := os.Stat(filepath.Join(dataDir, "swarm.key"))
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
+func TestConfigureIpfsUsesFlatfsForNewRepo(t *testing.T) {
+	dataDir := t.TempDir()
+
+	configured, err := configureIpfs(testIpfsConfig(dataDir), eventbus.New())
+	require.NoError(t, err)
+	require.Equal(t, "mount", configured.Datastore.Spec["type"])
+	require.True(t, datastoreHasType(configured.Datastore.Spec, "flatfs"))
+	require.Equal(t, ipfsConf.False, configured.Swarm.Transports.Network.Websocket)
+
+	locked, err := fsrepo.LockedByOtherProcess(dataDir)
+	require.NoError(t, err)
+	require.False(t, locked)
+}
+
+func TestConfigureIpfsPreservesExistingBadgerRepo(t *testing.T) {
+	dataDir := t.TempDir()
+	legacyConfig, err := ipfsConf.Init(io.Discard, 2048)
+	require.NoError(t, err)
+	require.NoError(t, ipfsConf.Profiles["badgerds"].Transform(legacyConfig))
+	require.NoError(t, fsrepo.Init(dataDir, legacyConfig))
+
+	configured, err := configureIpfs(testIpfsConfig(dataDir), eventbus.New())
+	require.NoError(t, err)
+	require.Equal(t, "badgerds", configured.Datastore.Spec["type"])
+
+	locked, err := fsrepo.LockedByOtherProcess(dataDir)
+	require.NoError(t, err)
+	require.False(t, locked)
+}
+
+func TestGetNodeConfigReportsOpenFailure(t *testing.T) {
+	_, err := getNodeConfig(filepath.Join(t.TempDir(), "missing"))
+	require.Error(t, err)
+}
+
+func testIpfsConfig(dataDir string) *config.IpfsConfig {
+	return &config.IpfsConfig{
+		DataDir:     dataDir,
+		BootNodes:   []string{},
+		SwarmKey:    "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530",
+		GracePeriod: "20s",
+	}
+}
+
+func datastoreHasType(spec map[string]any, datastoreType string) bool {
+	if spec["type"] == datastoreType {
+		return true
+	}
+	for _, child := range spec {
+		switch value := child.(type) {
+		case map[string]any:
+			if datastoreHasType(value, datastoreType) {
+				return true
+			}
+		case []any:
+			for _, item := range value {
+				if itemSpec, ok := item.(map[string]any); ok && datastoreHasType(itemSpec, datastoreType) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func TestIpfsProxy_Get_Cid(t *testing.T) {

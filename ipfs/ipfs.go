@@ -48,8 +48,9 @@ import (
 )
 
 const (
-	CidLength        = 36
-	ZeroPeersTimeout = 2 * time.Minute
+	CidLength                   = 36
+	ZeroPeersTimeout            = 2 * time.Minute
+	defaultIpfsDatastoreProfile = "flatfs"
 )
 
 type DataType = uint32
@@ -173,7 +174,13 @@ func createNode(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*core.IpfsNode, 
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
 
-	node, err := core.NewNode(ctx, getNodeConfig(dataDir))
+	buildCfg, err := getNodeConfig(dataDir)
+	if err != nil {
+		cancelCtx()
+		return nil, nil, func() {}, err
+	}
+
+	node, err := core.NewNode(ctx, buildCfg)
 	if err != nil {
 		cancelCtx()
 		return nil, nil, func() {}, err
@@ -629,6 +636,7 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		ipfsConfig.Swarm.ConnMgr.HighWater = ipfsConf.NewOptionalInteger(int64(cfg.HighWater))
 		ipfsConfig.Provide.DHT.Interval = reproviderInterval
 		ipfsConfig.Provide.Strategy = ipfsConf.NewOptionalString("pinned")
+		ipfsConfig.Swarm.Transports.Network.Websocket = ipfsConf.False
 		ipfsConfig.Swarm.Transports.Security.Noise = ipfsConf.Disabled
 
 		ipfsConfig.Swarm.RelayClient.Enabled = ipfsConf.True
@@ -646,11 +654,14 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 
 		return nil
 	}
-	var ipfsConfig *ipfsConf.Config
+	var (
+		ipfsConfig *ipfsConf.Config
+		err        error
+	)
 
 	datadir, _ := filepath.Abs(cfg.DataDir)
 	if !fsrepo.IsInitialized(datadir) {
-		ipfsConfig, err := ipfsConf.Init(os.Stdout, 2048)
+		ipfsConfig, err = ipfsConf.Init(os.Stdout, 2048)
 		if err != nil {
 			return nil, err
 		}
@@ -658,9 +669,9 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		ipfsConfig.Swarm.RelayClient.Enabled = ipfsConf.True
 		ipfsConfig.Swarm.EnableHolePunching = ipfsConf.True
 
-		transformer, ok := ipfsConf.Profiles["badgerds"]
+		transformer, ok := ipfsConf.Profiles[defaultIpfsDatastoreProfile]
 		if !ok {
-			return nil, fmt.Errorf("invalid IPFS configuration profile: %s", "badgerds")
+			return nil, fmt.Errorf("invalid IPFS configuration profile: %s", defaultIpfsDatastoreProfile)
 		}
 
 		if err := transformer.Transform(ipfsConfig); err != nil {
@@ -674,7 +685,7 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 			return nil, err
 		}
 	} else {
-		ipfsConfig, err := configAt(datadir)
+		ipfsConfig, err = configAt(datadir)
 		if err != nil {
 			if strings.Contains(err.Error(), "failure to decode config") {
 				configFilename, err := ipfsConf.Filename(datadir, "")
@@ -699,6 +710,10 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 			return nil, err
 		}
 		if err := repo.SetConfig(ipfsConfig); err != nil {
+			_ = repo.Close()
+			return nil, err
+		}
+		if err := repo.Close(); err != nil {
 			return nil, err
 		}
 	}
@@ -714,8 +729,11 @@ func writeSwarmKey(dataDir string, swarmKey string) {
 	}
 }
 
-func getNodeConfig(dataDir string) *core.BuildCfg {
-	repo, _ := fsrepo.Open(dataDir)
+func getNodeConfig(dataDir string) (*core.BuildCfg, error) {
+	repo, err := fsrepo.Open(dataDir)
+	if err != nil {
+		return nil, err
+	}
 
 	return &core.BuildCfg{
 		Repo:                        repo,
@@ -727,7 +745,7 @@ func getNodeConfig(dataDir string) *core.BuildCfg {
 			"ipnsps": false,
 			"mplex":  false,
 		},
-	}
+	}, nil
 
 }
 
