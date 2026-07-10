@@ -26,11 +26,11 @@ import (
 // Unmarshal a compressed point in the form specified in section 4.3.6 of ANSI X9.62.
 func Unmarshal(curve elliptic.Curve, data []byte) (x, y *big.Int) {
 	byteLen := (curve.Params().BitSize + 7) >> 3
-	if (data[0] &^ 1) != 2 {
-		return // unrecognized point encoding
-	}
 	if len(data) != 1+byteLen {
 		return
+	}
+	if (data[0] &^ 1) != 2 {
+		return // unrecognized point encoding
 	}
 
 	// Based on Routine 2.2.4 in NIST Mathematical routines paper

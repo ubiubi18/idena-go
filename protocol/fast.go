@@ -218,7 +218,9 @@ func (fs *fastSync) GetBlockTransactions(hash common.Hash, ipfsHash []byte) (typ
 			fs.log.Debug("Retrieve block body from ipfs", "hash", hash.Hex())
 		}
 		body := &types.Body{}
-		body.FromBytes(txs)
+		if err := body.DecodeBytes(txs); err != nil {
+			return nil, errors.Wrap(err, "invalid block body")
+		}
 		return body.Transactions, nil
 	}
 }
@@ -231,7 +233,7 @@ func (fs *fastSync) GetTxReceipts(receiptCid []byte) (types.TxReceipts, error) {
 			return nil, nil
 		}
 		body := types.TxReceipts{}
-		return body.FromBytes(data), nil
+		return body.DecodeBytes(data)
 	}
 }
 

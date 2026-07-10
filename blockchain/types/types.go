@@ -1060,9 +1060,17 @@ func (b *Body) FromProto(protoBody *models.ProtoBlockBody) *Body {
 }
 
 func (b *Body) FromBytes(data []byte) {
+	_ = b.DecodeBytes(data)
+}
+
+func (b *Body) DecodeBytes(data []byte) error {
 	protoBody := new(models.ProtoBlockBody)
-	proto.Unmarshal(data, protoBody)
-	b.FromProto(protoBody)
+	if err := proto.Unmarshal(data, protoBody); err != nil {
+		return err
+	}
+	decoded := new(Body).FromProto(protoBody)
+	b.Transactions = decoded.Transactions
+	return nil
 }
 
 func (b *Body) IsValid() bool {
@@ -1527,11 +1535,16 @@ func (txrs TxReceipts) ToBytes() ([]byte, error) {
 }
 
 func (txrs TxReceipts) FromBytes(data []byte) TxReceipts {
+	result, _ := txrs.DecodeBytes(data)
+	return result
+}
+
+func (txrs TxReceipts) DecodeBytes(data []byte) (TxReceipts, error) {
 	protoObj := new(models.ProtoTxReceipts)
 	if err := proto.Unmarshal(data, protoObj); err != nil {
-		return nil
+		return nil, err
 	}
-	return txrs.FromProto(protoObj)
+	return txrs.FromProto(protoObj), nil
 }
 
 func (txrs TxReceipts) FromProto(protoObj *models.ProtoTxReceipts) TxReceipts {

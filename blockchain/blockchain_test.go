@@ -2486,3 +2486,39 @@ func TestBlockchain_applyDiscriminationStatusSwitch(t *testing.T) {
 	require.True(t, appState.ValidatorsCache.IsDiscriminated(delegator2))
 	require.False(t, appState.ValidatorsCache.IsDiscriminated(delegator3))
 }
+
+func TestBlockchainLookupRejectsIndexAtLength(t *testing.T) {
+	chain, _, _, _ := NewTestBlockchain(false, nil)
+	defer chain.SecStore().Destroy()
+
+	body := &types.Body{Transactions: types.Transactions{{Type: types.SendTx}}}
+	bodyCid, err := chain.ipfs.Add(body.ToBytes(), false)
+	require.NoError(t, err)
+	header := &types.Header{ProposedHeader: &types.ProposedHeader{IpfsHash: bodyCid.Bytes()}}
+	chain.repo.WriteBlockHeader(header)
+
+	txHash := common.Hash{0x1}
+	chain.repo.WriteTxIndex(txHash, &types.TransactionIndex{
+		BlockHash: header.Hash(),
+		Idx:       uint32(len(body.Transactions)),
+	})
+	require.NotPanics(t, func() {
+		tx, index := chain.GetTx(txHash)
+		require.Nil(t, tx)
+		require.Nil(t, index)
+	})
+
+	receipts := types.TxReceipts{{Success: true}}
+	receiptsData, err := receipts.ToBytes()
+	require.NoError(t, err)
+	receiptsCid, err := chain.ipfs.Add(receiptsData, false)
+	require.NoError(t, err)
+	receiptHash := common.Hash{0x2}
+	chain.repo.WriteReceiptIndex(receiptHash, &types.TxReceiptIndex{
+		ReceiptCid: receiptsCid.Bytes(),
+		Idx:        uint32(len(receipts)),
+	})
+	require.NotPanics(t, func() {
+		require.Nil(t, chain.GetReceipt(receiptHash))
+	})
+}

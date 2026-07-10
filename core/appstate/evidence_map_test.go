@@ -74,7 +74,7 @@ func TestEvidenceMap_CalculateBitmap(t *testing.T) {
 	fmt.Printf("size of bitmap for %v candidates is %v bytes\n", candidatesCount, len(bytesArray))
 
 	rmap := common.NewBitmap(candidatesCount)
-	rmap.Read(bytesArray)
+	require.NoError(rmap.Read(bytesArray))
 
 	require.True(rmap.Contains(txCandidate))
 	require.False(rmap.Contains(delayedKeyAuthor))
@@ -112,6 +112,7 @@ func TestEvidenceMap_CalculateApprovedCandidates(t *testing.T) {
 	buf := new(bytes.Buffer)
 	m.WriteTo(buf)
 	maps = append(maps, buf.Bytes())
+	maps = append(maps, nil)
 
 	// second map
 	m = common.NewBitmap(candidatesCount)

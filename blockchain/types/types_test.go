@@ -94,3 +94,28 @@ func TestSavedTransactionFromBytesWithoutTx(t *testing.T) {
 	require.Equal(t, original.Timestamp, decoded.Timestamp)
 	require.Equal(t, original.FeePerGas, decoded.FeePerGas)
 }
+
+func TestBodyDecodeBytesRejectsMalformedDataWithoutMutation(t *testing.T) {
+	body := &Body{Transactions: Transactions{{Type: SendTx}}}
+
+	require.Error(t, body.DecodeBytes([]byte{0xff}))
+	require.Len(t, body.Transactions, 1)
+	require.Equal(t, uint16(SendTx), body.Transactions[0].Type)
+}
+
+func TestBodyDecodeBytesReplacesTransactions(t *testing.T) {
+	original := &Body{Transactions: Transactions{{Type: SendTx}}}
+	data := original.ToBytes()
+	body := &Body{Transactions: Transactions{{Type: KillTx}}}
+
+	require.NoError(t, body.DecodeBytes(data))
+	require.Len(t, body.Transactions, 1)
+	require.Equal(t, uint16(SendTx), body.Transactions[0].Type)
+}
+
+func TestTxReceiptsDecodeBytesRejectsMalformedData(t *testing.T) {
+	receipts, err := (TxReceipts{}).DecodeBytes([]byte{0xff})
+
+	require.Error(t, err)
+	require.Nil(t, receipts)
+}

@@ -2,8 +2,10 @@ package common
 
 import (
 	"bytes"
-	"github.com/RoaringBitmap/roaring"
+	"fmt"
 	"math/big"
+
+	"github.com/RoaringBitmap/roaring"
 )
 
 const (
@@ -50,20 +52,43 @@ func (m *Bitmap) WriteTo(buffer *bytes.Buffer) {
 	}
 }
 
-func (m *Bitmap) Read(data []byte) {
-	m.rmap = roaring.NewBitmap()
-	if data[0] == serializeDefault {
-		buf := bytes.NewBuffer(data[1:])
-		m.rmap.ReadFrom(buf)
-	} else {
-		bits := big.NewInt(0)
-		bits.SetBytes(data[1:])
+func (m *Bitmap) Read(data []byte) error {
+	if len(data) == 0 {
+		return fmt.Errorf("bitmap encoding is empty")
+	}
+	if len(data) > int(m.size/8)+2 {
+		return fmt.Errorf("bitmap encoding is too large for size %d", m.size)
+	}
+
+	rmap := roaring.NewBitmap()
+	switch data[0] {
+	case serializeDefault:
+		buf := bytes.NewReader(data[1:])
+		if _, err := rmap.ReadFrom(buf); err != nil {
+			return fmt.Errorf("decode roaring bitmap: %w", err)
+		}
+		if buf.Len() != 0 {
+			return fmt.Errorf("bitmap encoding has %d trailing bytes", buf.Len())
+		}
+		if !rmap.IsEmpty() && rmap.Maximum() >= m.size {
+			return fmt.Errorf("bitmap value %d exceeds size %d", rmap.Maximum(), m.size)
+		}
+	case serializeBigInt:
+		bits := new(big.Int).SetBytes(data[1:])
+		if bits.BitLen() > int(m.size) {
+			return fmt.Errorf("bitmap value exceeds size %d", m.size)
+		}
 		for i := uint32(0); i < m.size; i++ {
 			if bits.Bit(int(i)) == 1 {
-				m.rmap.Add(i)
+				rmap.Add(i)
 			}
 		}
+	default:
+		return fmt.Errorf("unknown bitmap encoding 0x%x", data[0])
 	}
+
+	m.rmap = rmap
+	return nil
 }
 
 func (m *Bitmap) ToArray() []uint32 {

@@ -202,7 +202,9 @@ func (fs *fullSync) GetBlock(header *types.Header) (*types.Block, error) {
 			fs.log.Debug("Retrieve block body from ipfs", "hash", header.Hash().Hex())
 		}
 		body := &types.Body{}
-		body.FromBytes(txs)
+		if err := body.DecodeBytes(txs); err != nil {
+			return nil, errors.Wrap(err, "invalid block body")
+		}
 		return &types.Block{
 			Header: header,
 			Body:   body,

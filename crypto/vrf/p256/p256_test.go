@@ -42,6 +42,14 @@ func TestH1(t *testing.T) {
 	}
 }
 
+func TestUnmarshalRejectsEmptyInput(t *testing.T) {
+	require.NotPanics(t, func() {
+		x, y := Unmarshal(curve, nil)
+		require.Nil(t, x)
+		require.Nil(t, y)
+	})
+}
+
 func TestH2(t *testing.T) {
 	l := 32
 	for i := 0; i < 10000; i++ {

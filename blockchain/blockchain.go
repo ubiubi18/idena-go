@@ -2583,7 +2583,10 @@ func (chain *Blockchain) GetBlock(hash common.Hash) *types.Block {
 		return nil
 	} else {
 		body := &types.Body{}
-		body.FromBytes(bodyBytes)
+		if err := body.DecodeBytes(bodyBytes); err != nil {
+			chain.log.Error("Failed to decode block body", "hash", hash.Hex(), "err", err)
+			return nil
+		}
 		return &types.Block{
 			Header: header,
 			Body:   body,
@@ -2636,8 +2639,11 @@ func (chain *Blockchain) GetReceipt(hash common.Hash) *types.TxReceipt {
 		return nil
 	}
 	r := types.TxReceipts{}
-	r = r.FromBytes(data)
-	if len(r) < int(idx.Idx) {
+	r, err = r.DecodeBytes(data)
+	if err != nil {
+		return nil
+	}
+	if idx.Idx >= uint32(len(r)) {
 		return nil
 	}
 	return r[idx.Idx]
@@ -2658,9 +2664,11 @@ func (chain *Blockchain) GetTx(hash common.Hash) (*types.Transaction, *types.Tra
 		return nil, nil
 	}
 	body := &types.Body{}
-	body.FromBytes(data)
+	if err := body.DecodeBytes(data); err != nil {
+		return nil, nil
+	}
 
-	if uint32(len(body.Transactions)) < idx.Idx {
+	if idx.Idx >= uint32(len(body.Transactions)) {
 		return nil, nil
 	}
 	tx := body.Transactions[idx.Idx]
