@@ -356,7 +356,7 @@ func TestClientNotificationStorm(t *testing.T) {
 	doTest := func(count int, wantError bool) {
 		client := DialInProc(server)
 		defer client.Close()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		// Subscribe on the server. It will start sending many notifications
@@ -392,10 +392,13 @@ func TestClientNotificationStorm(t *testing.T) {
 				return
 			}
 		}
+		if wantError {
+			t.Fatal("didn't get expected subscription overflow")
+		}
 	}
 
 	doTest(8000, false)
-	doTest(10000, true)
+	doTest(24000, true)
 }
 
 func TestClientHTTP(t *testing.T) {

@@ -47,6 +47,7 @@ const (
 	defaultDialTimeout   = 10 * time.Second // used when dialing if the context has no deadline
 	defaultWriteTimeout  = 10 * time.Second // used for calls if the context has no deadline
 	subscribeTimeout     = 5 * time.Second  // overall timeout eth_subscribe, rpc_modules calls
+	unsubscribeTimeout   = 10 * time.Second // timeout for *_unsubscribe calls
 )
 
 const (
@@ -588,7 +589,7 @@ func (c *Client) closeRequestOps(err error) {
 	}
 	for id, sub := range c.subs {
 		delete(c.subs, id)
-		sub.quitWithError(err, false)
+		sub.close(err)
 	}
 }
 
@@ -631,7 +632,7 @@ func (c *Client) handleResponse(msg *jsonrpcMessage) {
 		return
 	}
 	if op.err = json.Unmarshal(msg.Result, &op.sub.subid); op.err == nil {
-		go op.sub.start()
+		go op.sub.run()
 		c.subs[op.sub.subid] = op.sub
 	}
 }
@@ -678,21 +679,32 @@ type ClientSubscription struct {
 	subid     string
 	in        chan json.RawMessage
 
-	quitOnce sync.Once     // ensures quit is closed once
-	quit     chan struct{} // quit is closed when the subscription exits
-	errOnce  sync.Once     // ensures err is closed once
-	err      chan error
+	// The error channel receives the error from the forwarding loop.
+	// It is closed by Unsubscribe.
+	err     chan error
+	errOnce sync.Once
+
+	// The forwarding loop handles requests sent to quit. It closes forwardDone
+	// before making the bounded server-side unsubscribe call, then closes
+	// unsubDone when all subscription cleanup is complete.
+	quit        chan error
+	forwardDone chan struct{}
+	unsubDone   chan struct{}
 }
+
+var errUnsubscribed = errors.New("unsubscribed")
 
 func newClientSubscription(c *Client, namespace string, channel reflect.Value) *ClientSubscription {
 	sub := &ClientSubscription{
-		client:    c,
-		namespace: namespace,
-		etype:     channel.Type().Elem(),
-		channel:   channel,
-		quit:      make(chan struct{}),
-		err:       make(chan error, 1),
-		in:        make(chan json.RawMessage),
+		client:      c,
+		namespace:   namespace,
+		etype:       channel.Type().Elem(),
+		channel:     channel,
+		in:          make(chan json.RawMessage),
+		quit:        make(chan error),
+		forwardDone: make(chan struct{}),
+		unsubDone:   make(chan struct{}),
+		err:         make(chan error, 1),
 	}
 	return sub
 }
@@ -712,25 +724,13 @@ func (sub *ClientSubscription) Err() <-chan error {
 // Unsubscribe unsubscribes the notification and closes the error channel.
 // It can safely be called more than once.
 func (sub *ClientSubscription) Unsubscribe() {
-	sub.quitWithError(nil, true)
-	sub.errOnce.Do(func() { close(sub.err) })
-}
-
-func (sub *ClientSubscription) quitWithError(err error, unsubscribeServer bool) {
-	sub.quitOnce.Do(func() {
-		// The dispatch loop won't be able to execute the unsubscribe call
-		// if it is blocked on deliver. Close sub.quit first because it
-		// unblocks deliver.
-		close(sub.quit)
-		if unsubscribeServer {
-			sub.requestUnsubscribe()
+	sub.errOnce.Do(func() {
+		select {
+		case sub.quit <- errUnsubscribed:
+			<-sub.unsubDone
+		case <-sub.unsubDone:
 		}
-		if err != nil {
-			if err == ErrClientQuit {
-				err = nil // Adhere to subscription semantics.
-			}
-			sub.err <- err
-		}
+		close(sub.err)
 	})
 }
 
@@ -738,16 +738,36 @@ func (sub *ClientSubscription) deliver(result json.RawMessage) (ok bool) {
 	select {
 	case sub.in <- result:
 		return true
-	case <-sub.quit:
+	case <-sub.forwardDone:
 		return false
 	}
 }
 
-func (sub *ClientSubscription) start() {
-	sub.quitWithError(sub.forward())
+func (sub *ClientSubscription) close(err error) {
+	select {
+	case sub.quit <- err:
+	case <-sub.forwardDone:
+	}
 }
 
-func (sub *ClientSubscription) forward() (err error, unsubscribeServer bool) {
+func (sub *ClientSubscription) run() {
+	defer close(sub.unsubDone)
+
+	unsubscribeServer, err := sub.forward()
+	// Unblock the dispatch loop before issuing an RPC call through it.
+	close(sub.forwardDone)
+	if unsubscribeServer {
+		sub.requestUnsubscribe()
+	}
+	if err != nil {
+		if err == ErrClientQuit {
+			err = nil
+		}
+		sub.err <- err
+	}
+}
+
+func (sub *ClientSubscription) forward() (unsubscribeServer bool, err error) {
 	cases := []reflect.SelectCase{
 		{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(sub.quit)},
 		{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(sub.in)},
@@ -769,14 +789,20 @@ func (sub *ClientSubscription) forward() (err error, unsubscribeServer bool) {
 
 		switch chosen {
 		case 0: // <-sub.quit
-			return nil, false
+			if !recv.IsNil() {
+				err = recv.Interface().(error)
+			}
+			if err == errUnsubscribed {
+				return true, nil
+			}
+			return false, err
 		case 1: // <-sub.in
 			val, err := sub.unmarshal(recv.Interface().(json.RawMessage))
 			if err != nil {
-				return err, true
+				return true, err
 			}
 			if buffer.Len() == maxClientSubscriptionBuffer {
-				return ErrSubscriptionQueueOverflow, true
+				return true, ErrSubscriptionQueueOverflow
 			}
 			buffer.PushBack(val)
 		case 2: // sub.channel<-
@@ -794,5 +820,7 @@ func (sub *ClientSubscription) unmarshal(result json.RawMessage) (interface{}, e
 
 func (sub *ClientSubscription) requestUnsubscribe() error {
 	var result interface{}
-	return sub.client.Call(&result, sub.namespace+unsubscribeMethodSuffix, sub.subid)
+	ctx, cancel := context.WithTimeout(context.Background(), unsubscribeTimeout)
+	defer cancel()
+	return sub.client.CallContext(ctx, &result, sub.namespace+unsubscribeMethodSuffix, sub.subid)
 }
