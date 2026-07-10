@@ -5,6 +5,7 @@ package ipfs
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
@@ -720,9 +721,17 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 }
 
 func writeSwarmKey(dataDir string, swarmKey string) error {
+	decodedKey, err := hex.DecodeString(swarmKey)
+	if err != nil || len(decodedKey) != 32 {
+		return errors.New("IPFS swarm key must be a 32-byte hexadecimal string")
+	}
+
 	swarmPath := filepath.Join(dataDir, "swarm.key")
 	if err := os.WriteFile(swarmPath, []byte(fmt.Sprintf("/key/swarm/psk/1.0.0/\n/base16/\n%v", swarmKey)), 0600); err != nil {
 		return errors.Wrap(err, "failed to persist IPFS swarm key")
+	}
+	if err := os.Chmod(swarmPath, 0600); err != nil {
+		return errors.Wrap(err, "failed to restrict IPFS swarm key permissions")
 	}
 	return nil
 }

@@ -72,6 +72,29 @@ func TestWriteSwarmKeyReportsWriteFailure(t *testing.T) {
 	require.ErrorContains(t, err, "failed to persist IPFS swarm key")
 }
 
+func TestWriteSwarmKeyRejectsMalformedKey(t *testing.T) {
+	dataDir := t.TempDir()
+
+	err := writeSwarmKey(dataDir, "not-a-32-byte-hex-key")
+	require.ErrorContains(t, err, "32-byte hexadecimal string")
+	require.NoFileExists(t, filepath.Join(dataDir, "swarm.key"))
+}
+
+func TestWriteSwarmKeyRestrictsExistingFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose POSIX file mode bits")
+	}
+
+	dataDir := t.TempDir()
+	swarmPath := filepath.Join(dataDir, "swarm.key")
+	require.NoError(t, os.WriteFile(swarmPath, []byte("old"), 0644))
+
+	require.NoError(t, writeSwarmKey(dataDir, "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530"))
+	info, err := os.Stat(swarmPath)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
 func TestConfigureIpfsUsesFlatfsForNewRepo(t *testing.T) {
 	dataDir := t.TempDir()
 
