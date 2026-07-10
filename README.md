@@ -1,8 +1,58 @@
-## Idena Go
+# Idena Go
 
-Golang implementation of the Idena network node
+Go implementation of the Idena network node.
 
-[![Build Status](https://travis-ci.com/idena-network/idena-go.svg?branch=master)](https://travis-ci.com/idena-network/idena-go)
+[![Build Idena](https://github.com/ubiubi18/idena-go/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/ubiubi18/idena-go/actions/workflows/main.yml)
+
+> This is a community-maintained compatibility and security fork. It has no
+> published binary releases. Build from a reviewed commit and verify the
+> resulting binary before using it with a valuable identity.
+
+## Fork status
+
+This branch keeps the Idena consensus rules, chain data formats, transaction
+encoding, and network identifiers unchanged. It is intended to remain on the
+same network as nodes built from `idena-network/idena-go`. The hardening changes
+reject malformed, corrupt, or excessively large inputs earlier; they do not
+introduce a new chain or consensus version.
+
+### What was updated
+
+- Go and CI were moved to Go `1.26.5`, with native builds tested on Linux,
+  macOS, and Windows, including ARM64 where supported.
+- Kubo, libp2p, cryptography, database, compression, and supporting Go modules
+  were refreshed while preserving the node's existing protocol behavior.
+- The Wasm binding is pinned to this fork's checksum-verified static archives.
+- RPC API-key files and Unix IPC sockets are restricted to the current user;
+  malformed RPC, P2P, protobuf, database, and fast-sync state is handled
+  fail-closed instead of panicking or silently advancing state.
+- Compressed P2P messages are size-checked before decompression allocation, and
+  IPFS routing defaults to client mode unless unsafe routing is explicitly
+  enabled.
+- CI runs tests, race-sensitive checks, static analysis, cross-platform builds,
+  and a repository-specific vulnerability policy before releases.
+
+### Benefits
+
+- Fewer known vulnerable or abandoned dependencies and less native build
+  surface.
+- Better resistance to malformed network traffic, corrupt local metadata, and
+  permissive local credential files.
+- Reproducible toolchain and Wasm artifact pins across the desktop and contract
+  repositories.
+
+### Risks and tradeoffs
+
+- Dependency upgrades can still change performance, peer discovery, IPFS
+  behavior, or resource usage even when consensus serialization is unchanged.
+- `GO-2024-3218` remains reachable in the reviewed
+  `go-libp2p-kad-dht v0.41.0`; the default DHT client mode reduces exposure but
+  does not remove the upstream peer-ID spoofing issue. See
+  [`docs/security/vulnerability-policy.md`](docs/security/vulnerability-policy.md).
+- Existing Badger-based IPFS repositories are not migrated automatically.
+  Back up the full data directory before changing versions or storage profiles.
+- Mixing a node binary, Wasm binding, or database copied from another revision
+  is unsupported. Keep the exact source and artifact pins together.
 
 ## Building the source
 
@@ -13,9 +63,17 @@ Once the dependencies are installed, run
 go build
 ```
 
+Run the validation and vulnerability gates before starting the node:
+
+```shell
+go test ./...
+./scripts/govulncheck-filter.sh
+```
+
 ## Running `idena-go`
 
-To connect to idena `experimental mainnet` network run executable without parameters. `idena-go` uses `go-ipfs` and private ipfs network to store data.
+To connect to the Idena mainnet, run the executable without parameters.
+`idena-go` uses Kubo and a private IPFS network to store data.
 
 ### CLI parameters
 
@@ -110,4 +168,4 @@ For debug purposes you can run local automine node with this config.
 * `Network` - should be different from 1 or 2, any `uint32` number
 * `Ipfs bootnodes` - array of bootstrap nodes in case of running multiple local nodes
 
-For more detailed configuration please see [config structure](https://github.com/idena-network/idena-go/blob/master/config/config.go#L26)
+For more detailed configuration, see the [config structure](config/config.go).
