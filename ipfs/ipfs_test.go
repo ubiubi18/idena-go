@@ -57,11 +57,19 @@ func TestWriteSwarmKeyCreatesPrivateFile(t *testing.T) {
 
 	dataDir := t.TempDir()
 
-	writeSwarmKey(dataDir, "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530")
+	require.NoError(t, writeSwarmKey(dataDir, "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530"))
 
 	info, err := os.Stat(filepath.Join(dataDir, "swarm.key"))
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
+func TestWriteSwarmKeyReportsWriteFailure(t *testing.T) {
+	dataDir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dataDir, "swarm.key"), 0700))
+
+	err := writeSwarmKey(dataDir, "9ad6f96bb2b02a7308ad87938d6139a974b550cc029ce416641a60c46db2f530")
+	require.ErrorContains(t, err, "failed to persist IPFS swarm key")
 }
 
 func TestConfigureIpfsUsesFlatfsForNewRepo(t *testing.T) {
@@ -92,6 +100,26 @@ func TestConfigureIpfsPreservesExistingBadgerRepo(t *testing.T) {
 	locked, err := fsrepo.LockedByOtherProcess(dataDir)
 	require.NoError(t, err)
 	require.False(t, locked)
+}
+
+func TestConfigureIpfsPreservesMalformedExistingConfig(t *testing.T) {
+	dataDir := t.TempDir()
+	initialConfig, err := ipfsConf.Init(io.Discard, 2048)
+	require.NoError(t, err)
+	require.NoError(t, fsrepo.Init(dataDir, initialConfig))
+
+	configFile, err := ipfsConf.Filename(dataDir, "")
+	require.NoError(t, err)
+	malformedConfig := []byte(`{"Identity":`)
+	require.NoError(t, os.WriteFile(configFile, malformedConfig, 0600))
+
+	configured, err := configureIpfs(testIpfsConfig(dataDir), eventbus.New())
+	require.Nil(t, configured)
+	require.ErrorContains(t, err, "refusing automatic replacement")
+
+	storedConfig, readErr := os.ReadFile(configFile)
+	require.NoError(t, readErr)
+	require.Equal(t, malformedConfig, storedConfig)
 }
 
 func TestGetNodeConfigReportsOpenFailure(t *testing.T) {

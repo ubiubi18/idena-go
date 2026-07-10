@@ -159,7 +159,10 @@ func NewIpfsProxy(cfg *config.IpfsConfig, bus eventbus.Bus) (Proxy, error) {
 }
 
 func createNode(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*core.IpfsNode, context.Context, context.CancelFunc, error) {
-	dataDir, _ := filepath.Abs(cfg.DataDir)
+	dataDir, err := filepath.Abs(cfg.DataDir)
+	if err != nil {
+		return nil, nil, func() {}, err
+	}
 
 	if ln, err := net.Listen("tcp", ":"+strconv.Itoa(cfg.IpfsPort)); err == nil {
 		ln.Close()
@@ -167,7 +170,7 @@ func createNode(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*core.IpfsNode, 
 		return nil, nil, func() {}, errors.Errorf("cannot start IPFS node on port %v, err: %v", cfg.IpfsPort, err.Error())
 	}
 
-	_, err := configureIpfs(cfg, eventBus)
+	_, err = configureIpfs(cfg, eventBus)
 	if err != nil {
 		return nil, nil, func() {}, err
 	}
@@ -659,7 +662,10 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		err        error
 	)
 
-	datadir, _ := filepath.Abs(cfg.DataDir)
+	datadir, err := filepath.Abs(cfg.DataDir)
+	if err != nil {
+		return nil, err
+	}
 	if !fsrepo.IsInitialized(datadir) {
 		ipfsConfig, err = ipfsConf.Init(os.Stdout, 2048)
 		if err != nil {
@@ -687,17 +693,7 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 	} else {
 		ipfsConfig, err = configAt(datadir)
 		if err != nil {
-			if strings.Contains(err.Error(), "failure to decode config") {
-				configFilename, err := ipfsConf.Filename(datadir, "")
-				if err != nil {
-					return nil, err
-				}
-				if err := os.Remove(configFilename); err != nil {
-					return nil, err
-				}
-				return configureIpfs(cfg, eventBus)
-			}
-			return nil, err
+			return nil, errors.Wrap(err, "cannot load existing IPFS repository config; refusing automatic replacement")
 		}
 		err = updateIpfsConfig(ipfsConfig)
 		if err != nil {
@@ -717,16 +713,18 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 			return nil, err
 		}
 	}
-	writeSwarmKey(datadir, cfg.SwarmKey)
+	if err := writeSwarmKey(datadir, cfg.SwarmKey); err != nil {
+		return nil, err
+	}
 	return ipfsConfig, nil
 }
 
-func writeSwarmKey(dataDir string, swarmKey string) {
+func writeSwarmKey(dataDir string, swarmKey string) error {
 	swarmPath := filepath.Join(dataDir, "swarm.key")
-	err := os.WriteFile(swarmPath, []byte(fmt.Sprintf("/key/swarm/psk/1.0.0/\n/base16/\n%v", swarmKey)), 0600)
-	if err != nil {
-		log.Error(fmt.Sprintf("Failed to persist swarm file: %v", err))
+	if err := os.WriteFile(swarmPath, []byte(fmt.Sprintf("/key/swarm/psk/1.0.0/\n/base16/\n%v", swarmKey)), 0600); err != nil {
+		return errors.Wrap(err, "failed to persist IPFS swarm key")
 	}
+	return nil
 }
 
 func getNodeConfig(dataDir string) (*core.BuildCfg, error) {
@@ -750,10 +748,12 @@ func getNodeConfig(dataDir string) (*core.BuildCfg, error) {
 }
 
 func loadPlugins(cfg *config.IpfsConfig) error {
-	dataDir, _ := filepath.Abs(cfg.DataDir)
+	dataDir, err := filepath.Abs(cfg.DataDir)
+	if err != nil {
+		return err
+	}
 	pluginPath := filepath.Join(dataDir, "plugins")
 
-	var plugins *loader.PluginLoader
 	plugins, err := loader.NewPluginLoader(pluginPath)
 
 	if err != nil {
