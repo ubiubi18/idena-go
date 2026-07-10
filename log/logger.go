@@ -158,9 +158,8 @@ func newContext(prefix []interface{}, suffix []interface{}) []interface{} {
 	if len(prefix) > math.MaxInt-len(normalizedSuffix) {
 		return []interface{}{errorKey, "Context is too large"}
 	}
-	newCtx := make([]interface{}, len(prefix)+len(normalizedSuffix))
-	n := copy(newCtx, prefix)
-	copy(newCtx[n:], normalizedSuffix)
+	newCtx := append([]interface{}(nil), prefix...)
+	newCtx = append(newCtx, normalizedSuffix...)
 	return newCtx
 }
 
