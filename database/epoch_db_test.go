@@ -62,6 +62,17 @@ func TestEpochDb_IterateOverFlipCids(t *testing.T) {
 	require.Len(cids, 2)
 }
 
+func TestEpochDbSkipsCorruptFlipKeys(t *testing.T) {
+	mdb := db.NewMemDB()
+	edb := NewEpochDb(mdb, 1)
+
+	require.NoError(t, edb.db.Set(append(PublicFlipKeyPrefix, 0x1), []byte{0xff}))
+	require.NoError(t, edb.db.Set(append(PrivateFlipKeyPrefix, 0x1), []byte{0xff}))
+
+	require.Empty(t, edb.ReadPublicFlipKeys())
+	require.Empty(t, edb.ReadPrivateFlipKeys())
+}
+
 func TestEpochDb_Write_Read_FlipPairs(t *testing.T) {
 	require := require.New(t)
 	mdb := db.NewMemDB()

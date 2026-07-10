@@ -32,6 +32,7 @@ const (
 	maxTimeoutsBeforeBan = 7
 
 	minCompressionSize = 386 // bytes
+	maxDecodedMsgSize  = 64 * 1024 * 1024
 
 	pushQueueSize    = 30000
 	flipKeyQueueSize = 30000
@@ -440,8 +441,19 @@ func Decode(src []byte) ([]byte, error) {
 
 	switch src[0] {
 	case noCompression:
-		return src[1:], nil
+		payload := src[1:]
+		if len(payload) > maxDecodedMsgSize {
+			return nil, errors.Errorf("message size %d exceeds limit %d", len(payload), maxDecodedMsgSize)
+		}
+		return payload, nil
 	case s2Compression:
+		decodedLen, err := s2.DecodedLen(src[1:])
+		if err != nil {
+			return nil, err
+		}
+		if decodedLen > maxDecodedMsgSize {
+			return nil, errors.Errorf("decoded message size %d exceeds limit %d", decodedLen, maxDecodedMsgSize)
+		}
 		return s2.Decode(nil, src[1:])
 	default:
 		return nil, errors.New("unknown compression")

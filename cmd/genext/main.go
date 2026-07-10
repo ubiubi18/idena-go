@@ -43,7 +43,10 @@ func main() {
 		}
 		defer db.Close()
 		repo := database.NewRepo(db)
-		genesis := repo.ReadIntermediateGenesis()
+		genesis, err := repo.ReadIntermediateGenesisWithError()
+		if err != nil {
+			return err
+		}
 		if genesis == 0 {
 			return errors.New("intermediate genesis is not found")
 		}

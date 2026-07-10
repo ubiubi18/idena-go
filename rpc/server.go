@@ -354,6 +354,7 @@ func (s *Server) exec(ctx context.Context, codec ServerCodec, req *serverRequest
 	if err := codec.Write(response); err != nil {
 		log.Error(fmt.Sprintf("%v\n", err))
 		codec.Close()
+		return
 	}
 
 	// when request was a subscribe request this allows these subscriptions to be actived
@@ -381,6 +382,7 @@ func (s *Server) execBatch(ctx context.Context, codec ServerCodec, requests []*s
 	if err := codec.Write(responses); err != nil {
 		log.Error(fmt.Sprintf("%v\n", err))
 		codec.Close()
+		return
 	}
 
 	// when request holds one of more subscribe requests this allows these subscriptions to be activated

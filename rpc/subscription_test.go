@@ -19,6 +19,7 @@ package rpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"testing"
@@ -31,8 +32,104 @@ type NotificationTestService struct {
 	unblockHangSubscription chan struct{}
 }
 
+type failingNotificationCodec struct {
+	ServerCodec
+	writeErr   error
+	writes     int
+	closeCalls int
+}
+
+func (c *failingNotificationCodec) CreateResponse(_ interface{}, reply interface{}) interface{} {
+	return reply
+}
+
+func (c *failingNotificationCodec) CreateNotification(_, _ string, event interface{}) interface{} {
+	return event
+}
+
+func (c *failingNotificationCodec) Write(interface{}) error {
+	c.writes++
+	return c.writeErr
+}
+
+func (c *failingNotificationCodec) Close() {
+	c.closeCalls++
+}
+
+type FailingSubscriptionService struct {
+	subscription *Subscription
+}
+
+func (s *FailingSubscriptionService) SomeSubscription(ctx context.Context) (*Subscription, error) {
+	notifier, _ := NotifierFromContext(ctx)
+	s.subscription = notifier.CreateSubscription()
+	return s.subscription, nil
+}
+
 func (s *NotificationTestService) Echo(i int) int {
 	return i
+}
+
+func TestNotifierReturnsWriteError(t *testing.T) {
+	wantErr := errors.New("write failed")
+	codec := &failingNotificationCodec{writeErr: wantErr}
+	notifier := newNotifier(codec)
+	subscription := notifier.CreateSubscription()
+	notifier.activate(subscription.ID, "test")
+
+	err := notifier.Notify(subscription.ID, "event")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected write error %v, got %v", wantErr, err)
+	}
+	if codec.closeCalls != 1 {
+		t.Fatalf("expected codec to be closed once, got %d", codec.closeCalls)
+	}
+}
+
+func TestNotifierStopsFlushingAfterWriteError(t *testing.T) {
+	codec := &failingNotificationCodec{writeErr: errors.New("write failed")}
+	notifier := newNotifier(codec)
+	subscription := notifier.CreateSubscription()
+
+	if err := notifier.Notify(subscription.ID, "first"); err != nil {
+		t.Fatal(err)
+	}
+	if err := notifier.Notify(subscription.ID, "second"); err != nil {
+		t.Fatal(err)
+	}
+	notifier.activate(subscription.ID, "test")
+
+	if codec.writes != 1 {
+		t.Fatalf("expected buffered flush to stop after one failed write, got %d writes", codec.writes)
+	}
+}
+
+func TestFailedSubscriptionResponseDoesNotActivate(t *testing.T) {
+	codec := &failingNotificationCodec{writeErr: errors.New("write failed")}
+	notifier := newNotifier(codec)
+	ctx := context.WithValue(context.Background(), notifierKey{}, notifier)
+	server := NewServer("")
+	service := new(FailingSubscriptionService)
+	if err := server.RegisterName("test", service); err != nil {
+		t.Fatal(err)
+	}
+
+	request := &serverRequest{
+		id:      1,
+		svcname: "test",
+		callb:   server.services["test"].subscriptions["someSubscription"],
+	}
+	server.exec(ctx, codec, request)
+
+	if service.subscription == nil {
+		t.Fatal("subscription callback was not called")
+	}
+	if _, active := notifier.active[service.subscription.ID]; active {
+		t.Fatal("subscription was activated after its response failed to write")
+	}
+	if _, inactive := notifier.inactive[service.subscription.ID]; !inactive {
+		t.Fatal("failed subscription should remain inactive")
+	}
 }
 
 func (s *NotificationTestService) Unsubscribe(subid string) {

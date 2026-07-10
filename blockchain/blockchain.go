@@ -222,7 +222,10 @@ func (chain *Blockchain) InitializeChain() error {
 			return errors.New("genesis block is not found")
 		}
 
-		intermediateGenesisHeight := chain.repo.ReadIntermediateGenesis()
+		intermediateGenesisHeight, err := chain.repo.ReadIntermediateGenesisWithError()
+		if err != nil {
+			return err
+		}
 		if intermediateGenesisHeight == 0 || intermediateGenesisHeight == predefinedGenesis.Height() {
 			chain.genesisInfo = &types.GenesisInfo{Genesis: predefinedGenesis}
 		} else {
@@ -3015,6 +3018,15 @@ func (chain *Blockchain) GetTopBlockHashes(count int) []common.Hash {
 }
 
 func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) error {
+	consensusVersion, err := chain.repo.ReadPreliminaryConsensusVersionWithError()
+	if err != nil {
+		return err
+	}
+	preliminaryIntermediateGenesis, err := chain.repo.ReadPreliminaryIntermediateGenesisWithError()
+	if err != nil {
+		return err
+	}
+
 	batch, oldIdentityStateDb, err := chain.appState.IdentityState.SwitchToPreliminary(manifest.Height)
 
 	if err != nil {
@@ -3030,12 +3042,10 @@ func (chain *Blockchain) AtomicSwitchToPreliminary(manifest *snapshot.Manifest) 
 	newHead := chain.PreliminaryHead
 	chain.RemovePreliminaryHead(batch)
 
-	consensusVersion := chain.ReadPreliminaryConsensusVersion()
 	if consensusVersion > 0 {
 		chain.repo.WriteConsensusVersion(batch, consensusVersion)
 		chain.repo.RemovePreliminaryConsensusVersion(batch)
 	}
-	preliminaryIntermediateGenesis := chain.repo.ReadPreliminaryIntermediateGenesis()
 	if preliminaryIntermediateGenesis > 0 {
 		chain.repo.WriteIntermediateGenesis(batch, preliminaryIntermediateGenesis)
 		chain.repo.RemovePreliminaryIntermediateGenesis(batch)
@@ -3066,6 +3076,10 @@ func (chain *Blockchain) WritePreliminaryConsensusVersion(ver uint32) {
 
 func (chain *Blockchain) ReadPreliminaryConsensusVersion() uint32 {
 	return chain.repo.ReadPreliminaryConsensusVersion()
+}
+
+func (chain *Blockchain) ReadPreliminaryConsensusVersionWithError() (uint32, error) {
+	return chain.repo.ReadPreliminaryConsensusVersionWithError()
 }
 
 func (chain *Blockchain) RemovePreliminaryConsensusVersion() {

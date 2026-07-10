@@ -321,7 +321,10 @@ func (edb *EpochDb) ReadPublicFlipKeys() []*types.PublicFlipKey {
 	for ; it.Valid(); it.Next() {
 
 		key := &types.PublicFlipKey{}
-		key.FromBytes(it.Value())
+		if err := key.FromBytes(it.Value()); err != nil {
+			log.Error("Cannot decode public flip key", "err", err)
+			continue
+		}
 		result = append(result, key)
 	}
 	return result
@@ -342,7 +345,10 @@ func (edb *EpochDb) ReadPrivateFlipKeys() []*types.PrivateFlipKeysPackage {
 	for ; it.Valid(); it.Next() {
 
 		key := &types.PrivateFlipKeysPackage{}
-		key.FromBytes(it.Value())
+		if err := key.FromBytes(it.Value()); err != nil {
+			log.Error("Cannot decode private flip key package", "err", err)
+			continue
+		}
 		result = append(result, key)
 	}
 	return result

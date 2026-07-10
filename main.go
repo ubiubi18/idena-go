@@ -1,15 +1,17 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+
 	"github.com/coreos/go-semver/semver"
 	"github.com/idena-network/idena-go/config"
 	"github.com/idena-network/idena-go/database"
 	"github.com/idena-network/idena-go/log"
 	"github.com/idena-network/idena-go/node"
 	"github.com/urfave/cli"
-	"os"
-	"path/filepath"
-	"runtime"
 )
 
 const (
@@ -65,15 +67,21 @@ func main() {
 
 		log.Root().SetHandler(handler)
 
+		var consensusVersionErr error
 		cfg, err := config.MakeConfig(context, func(cfg *config.Config) {
 			db, err := node.OpenDatabase(cfg.DataDir, "idenachain", 16, 16, false)
 			if err != nil {
+				consensusVersionErr = fmt.Errorf("open chain database: %w", err)
 				log.Error("Cannot transform consensus config", "err", err)
 				return
 			}
 			defer db.Close()
 			repo := database.NewRepo(db)
-			consVersion := repo.ReadConsensusVersion()
+			consVersion, err := repo.ReadConsensusVersionWithError()
+			if err != nil {
+				consensusVersionErr = fmt.Errorf("read consensus version: %w", err)
+				return
+			}
 			if consVersion <= uint32(cfg.Consensus.Version) {
 				return
 			}
@@ -85,6 +93,9 @@ func main() {
 
 		if err != nil {
 			return err
+		}
+		if consensusVersionErr != nil {
+			return consensusVersionErr
 		}
 		/*
 			err = dropOldDirOnFork(cfg)

@@ -18,6 +18,90 @@ func getRandHash() common.Hash {
 	return hash
 }
 
+func TestRepoMetadataReadersRejectInvalidLengths(t *testing.T) {
+	database := db.NewMemDB()
+	repo := NewRepo(database)
+
+	tests := []struct {
+		name string
+		key  []byte
+		read func() error
+	}{
+		{
+			name: "intermediate genesis",
+			key:  intermediateGenesisKey,
+			read: func() error {
+				_, err := repo.ReadIntermediateGenesisWithError()
+				return err
+			},
+		},
+		{
+			name: "consensus version",
+			key:  consensusVersionKey,
+			read: func() error {
+				_, err := repo.ReadConsensusVersionWithError()
+				return err
+			},
+		},
+		{
+			name: "preliminary consensus version",
+			key:  preliminaryConsVersionKey,
+			read: func() error {
+				_, err := repo.ReadPreliminaryConsensusVersionWithError()
+				return err
+			},
+		},
+		{
+			name: "preliminary intermediate genesis",
+			key:  preliminaryIntermediateGenesisKey,
+			read: func() error {
+				_, err := repo.ReadPreliminaryIntermediateGenesisWithError()
+				return err
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.NoError(t, database.Set(test.key, []byte{0x1}))
+			require.ErrorContains(t, test.read(), "invalid")
+		})
+	}
+}
+
+func TestRepoMetadataReadersRoundTrip(t *testing.T) {
+	database := db.NewMemDB()
+	repo := NewRepo(database)
+
+	repo.WriteIntermediateGenesis(nil, 42)
+	intermediateGenesis, err := repo.ReadIntermediateGenesisWithError()
+	require.NoError(t, err)
+	require.Equal(t, uint64(42), intermediateGenesis)
+
+	repo.WriteConsensusVersion(nil, 11)
+	consensusVersion, err := repo.ReadConsensusVersionWithError()
+	require.NoError(t, err)
+	require.Equal(t, uint32(11), consensusVersion)
+
+	repo.WritePreliminaryConsensusVersion(12)
+	preliminaryConsensusVersion, err := repo.ReadPreliminaryConsensusVersionWithError()
+	require.NoError(t, err)
+	require.Equal(t, uint32(12), preliminaryConsensusVersion)
+
+	repo.WritePreliminaryIntermediateGenesis(43)
+	preliminaryIntermediateGenesis, err := repo.ReadPreliminaryIntermediateGenesisWithError()
+	require.NoError(t, err)
+	require.Equal(t, uint64(43), preliminaryIntermediateGenesis)
+}
+
+func TestRepoReadUpgradeVotesRejectsCorruptData(t *testing.T) {
+	database := db.NewMemDB()
+	repo := NewRepo(database)
+	require.NoError(t, database.Set(upgradeVotesKey, []byte{0xff}))
+
+	require.Nil(t, repo.ReadUpgradeVotes())
+}
+
 func TestRepo_WriteWeakCertificate(t *testing.T) {
 	database := db.NewMemDB()
 	repo := NewRepo(database)

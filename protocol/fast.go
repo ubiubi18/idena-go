@@ -121,7 +121,11 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 		fs.loadValidators()
 		return from, err
 	}
-	if ver := fs.chain.ReadPreliminaryConsensusVersion(); ver > 0 {
+	ver, err := fs.chain.ReadPreliminaryConsensusVersionWithError()
+	if err != nil {
+		return 0, err
+	}
+	if ver > 0 {
 		fs.prevConfig = fs.upgrader.UpgradeConfigTo(ver)
 	}
 	fs.tryUpgradeConsensus(fs.chain.PreliminaryHead)
@@ -148,7 +152,9 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 			return b.Header.Height(), err
 		}
 		if !b.IdentityDiff.Empty() {
-			fs.identityStateDB.CommitTree(int64(b.Header.Height()))
+			if _, _, err := fs.identityStateDB.CommitTree(int64(b.Header.Height())); err != nil {
+				return b.Header.Height(), err
+			}
 		}
 
 		if err := fs.chain.AddHeaderUnsafe(b.Header); err != nil {
@@ -358,7 +364,9 @@ func (fs *fastSync) postConsuming() error {
 		//TODO : add snapshot to ban list
 		return err
 	}
-	fs.identityStateDB.SaveForcedVersion(fs.chain.PreliminaryHead.Height())
+	if err := fs.identityStateDB.SaveForcedVersion(fs.chain.PreliminaryHead.Height()); err != nil {
+		return err
+	}
 
 	if err := fs.chain.AtomicSwitchToPreliminary(fs.manifest); err != nil {
 		return err

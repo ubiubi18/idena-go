@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/binary"
+	"fmt"
 	math2 "math"
 	"math/big"
 	"sort"
@@ -28,6 +29,32 @@ func NewRepo(db dbm.DB) *Repo {
 	return &Repo{
 		db: db,
 	}
+}
+
+func readUint32Metadata(data []byte, err error, name string) (uint32, error) {
+	if err != nil {
+		return 0, fmt.Errorf("read %s: %w", name, err)
+	}
+	if len(data) == 0 {
+		return 0, nil
+	}
+	if len(data) != 4 {
+		return 0, fmt.Errorf("invalid %s length %d", name, len(data))
+	}
+	return binary.LittleEndian.Uint32(data), nil
+}
+
+func readUint64Metadata(data []byte, err error, name string) (uint64, error) {
+	if err != nil {
+		return 0, fmt.Errorf("read %s: %w", name, err)
+	}
+	if len(data) == 0 {
+		return 0, nil
+	}
+	if len(data) != 8 {
+		return 0, fmt.Errorf("invalid %s length %d", name, len(data))
+	}
+	return binary.LittleEndian.Uint64(data), nil
 }
 
 func encodeUint32Number(number uint32) []byte {
@@ -552,11 +579,16 @@ func (r *Repo) WriteIntermediateGenesis(batch dbm.Batch, height uint64) {
 }
 
 func (r *Repo) ReadIntermediateGenesis() uint64 {
-	data, err := r.db.Get(intermediateGenesisKey)
-	if err != nil || len(data) == 0 {
-		return 0
+	value, err := r.ReadIntermediateGenesisWithError()
+	if err != nil {
+		log.Error("Cannot read intermediate genesis", "err", err)
 	}
-	return binary.LittleEndian.Uint64(data)
+	return value
+}
+
+func (r *Repo) ReadIntermediateGenesisWithError() (uint64, error) {
+	data, err := r.db.Get(intermediateGenesisKey)
+	return readUint64Metadata(data, err, "intermediate genesis")
 }
 
 func (r *Repo) WriteUpgradeVotes(votes *types.UpgradeVotes) {
@@ -565,10 +597,17 @@ func (r *Repo) WriteUpgradeVotes(votes *types.UpgradeVotes) {
 }
 
 func (r *Repo) ReadUpgradeVotes() *types.UpgradeVotes {
-	data, _ := r.db.Get(upgradeVotesKey)
+	data, err := r.db.Get(upgradeVotesKey)
+	if err != nil {
+		log.Error("Cannot read upgrade votes", "err", err)
+		return nil
+	}
 	if len(data) > 0 {
 		v := types.NewUpgradeVotes()
-		v.FromBytes(data)
+		if err := v.FromBytes(data); err != nil {
+			log.Error("Cannot decode upgrade votes", "err", err)
+			return nil
+		}
 		return v
 	}
 	return nil
@@ -583,11 +622,16 @@ func (r *Repo) WriteConsensusVersion(batch dbm.Batch, v uint32) {
 }
 
 func (r *Repo) ReadConsensusVersion() uint32 {
-	data, err := r.db.Get(consensusVersionKey)
-	if err != nil || len(data) == 0 {
-		return 0
+	value, err := r.ReadConsensusVersionWithError()
+	if err != nil {
+		log.Error("Cannot read consensus version", "err", err)
 	}
-	return binary.LittleEndian.Uint32(data)
+	return value
+}
+
+func (r *Repo) ReadConsensusVersionWithError() (uint32, error) {
+	data, err := r.db.Get(consensusVersionKey)
+	return readUint32Metadata(data, err, "consensus version")
 }
 
 func (r *Repo) WritePreliminaryConsensusVersion(v uint32) {
@@ -595,11 +639,16 @@ func (r *Repo) WritePreliminaryConsensusVersion(v uint32) {
 }
 
 func (r *Repo) ReadPreliminaryConsensusVersion() uint32 {
-	data, err := r.db.Get(preliminaryConsVersionKey)
-	if err != nil || len(data) == 0 {
-		return 0
+	value, err := r.ReadPreliminaryConsensusVersionWithError()
+	if err != nil {
+		log.Error("Cannot read preliminary consensus version", "err", err)
 	}
-	return binary.LittleEndian.Uint32(data)
+	return value
+}
+
+func (r *Repo) ReadPreliminaryConsensusVersionWithError() (uint32, error) {
+	data, err := r.db.Get(preliminaryConsVersionKey)
+	return readUint32Metadata(data, err, "preliminary consensus version")
 }
 
 func (r *Repo) RemovePreliminaryConsensusVersion(batch dbm.Batch) {
@@ -615,11 +664,16 @@ func (r *Repo) WritePreliminaryIntermediateGenesis(height uint64) {
 }
 
 func (r *Repo) ReadPreliminaryIntermediateGenesis() uint64 {
-	data, err := r.db.Get(preliminaryIntermediateGenesisKey)
-	if err != nil || len(data) == 0 {
-		return 0
+	value, err := r.ReadPreliminaryIntermediateGenesisWithError()
+	if err != nil {
+		log.Error("Cannot read preliminary intermediate genesis", "err", err)
 	}
-	return binary.LittleEndian.Uint64(data)
+	return value
+}
+
+func (r *Repo) ReadPreliminaryIntermediateGenesisWithError() (uint64, error) {
+	data, err := r.db.Get(preliminaryIntermediateGenesisKey)
+	return readUint64Metadata(data, err, "preliminary intermediate genesis")
 }
 
 func (r *Repo) RemovePreliminaryIntermediateGenesis(batch dbm.Batch) {

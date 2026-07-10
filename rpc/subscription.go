@@ -94,7 +94,7 @@ func (n *Notifier) Notify(id ID, data interface{}) error {
 	defer n.subMu.Unlock()
 
 	if sub, active := n.active[id]; active {
-		n.send(sub, data)
+		return n.send(sub, data)
 	} else {
 		n.buffer[id] = append(n.buffer[id], data)
 	}
@@ -142,7 +142,9 @@ func (n *Notifier) activate(id ID, namespace string) {
 		delete(n.inactive, id)
 		// Send buffered notifications.
 		for _, data := range n.buffer[id] {
-			n.send(sub, data)
+			if err := n.send(sub, data); err != nil {
+				break
+			}
 		}
 		delete(n.buffer, id)
 	}

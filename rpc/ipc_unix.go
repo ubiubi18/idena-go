@@ -32,12 +32,18 @@ func ipcListen(endpoint string) (net.Listener, error) {
 	if err := os.MkdirAll(filepath.Dir(endpoint), 0750); err != nil {
 		return nil, err
 	}
-	os.Remove(endpoint)
+	if err := os.Remove(endpoint); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
 	l, err := net.Listen("unix", endpoint)
 	if err != nil {
 		return nil, err
 	}
-	os.Chmod(endpoint, 0600)
+	if err := os.Chmod(endpoint, 0600); err != nil {
+		_ = l.Close()
+		_ = os.Remove(endpoint)
+		return nil, err
+	}
 	return l, nil
 }
 
