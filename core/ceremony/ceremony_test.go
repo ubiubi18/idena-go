@@ -18,6 +18,11 @@ import (
 	"testing"
 )
 
+func TestValidationCeremonyInitializeRejectsMissingCurrentBlock(t *testing.T) {
+	ceremony := &ValidationCeremony{}
+	require.EqualError(t, ceremony.Initialize(nil), "current block is required")
+}
+
 func TestValidationCeremony_getFlipsToSolve(t *testing.T) {
 	require := require.New(t)
 

@@ -150,7 +150,10 @@ func NewValidationCeremony(appState *appstate.AppState, bus eventbus.Bus, flippe
 	return vc
 }
 
-func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
+func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) error {
+	if currentBlock == nil {
+		return errors.New("current block is required")
+	}
 	vc.epochDb = database.NewEpochDb(vc.db, vc.appState.State.Epoch())
 	vc.epoch = vc.appState.State.Epoch()
 	vc.qualification = NewQualification(vc.config, vc.epochDb)
@@ -199,6 +202,7 @@ func (vc *ValidationCeremony) Initialize(currentBlock *types.Block) {
 	go vc.newTxLoop()
 	vc.restoreState()
 	vc.addBlock(currentBlock)
+	return nil
 }
 
 func (vc *ValidationCeremony) addBlock(block *types.Block) {

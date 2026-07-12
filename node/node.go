@@ -310,7 +310,10 @@ func (node *Node) StartWithHeight(height uint64) error {
 	node.flipKeyPool.Initialize(node.blockchain.Head)
 	node.votes.Initialize(node.blockchain.Head)
 	node.fp.Initialize()
-	node.ceremony.Initialize(node.blockchain.GetBlock(node.blockchain.Head.Hash()))
+	currentBlock := node.blockchain.GetBlock(node.blockchain.Head.Hash())
+	if err := node.ceremony.Initialize(currentBlock); err != nil {
+		return errors.Wrap(err, "cannot initialize validation ceremony")
+	}
 	node.blockchain.ProvideApplyNewEpochFunc(node.ceremony.ApplyNewEpoch)
 	node.offlineDetector.Start(node.blockchain.Head)
 	node.consensusEngine.Start()
