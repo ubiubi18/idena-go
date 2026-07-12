@@ -123,8 +123,10 @@ func NewIdenaGossipHandler(host core.Host, pubsub *pubsub.PubSub, cfg config.P2P
 func (h *IdenaGossipHandler) Start() {
 
 	setHandler := func() {
-		matcher, _ := multistreamSemverMatcher(IdenaProtocol)
-		h.host.SetStreamHandlerMatch(IdenaProtocol, matcher, h.acceptStream)
+		closed, failed := registerIdenaStreamHandler(h.host, h.acceptStream)
+		if closed > 0 || failed > 0 {
+			h.log.Info("Refreshed Idena protocol advertisement", "closedPeers", closed, "failedPeers", failed)
+		}
 		h.connManager = NewConnManager(h.host, h.cfg)
 		notifiee := &notifiee{
 			connManager: h.connManager,
@@ -172,6 +174,24 @@ func (h *IdenaGossipHandler) Start() {
 	go h.checkTime()
 	go h.background()
 	go h.watchShardSubscription()
+}
+
+// registerIdenaStreamHandler reconnects peers established while the embedded
+// IPFS node was starting. Legacy peers otherwise retain an Identify snapshot
+// that does not advertise the handler registered later during node startup.
+func registerIdenaStreamHandler(host core.Host, handler network.StreamHandler) (closed, failed int) {
+	preexistingPeers := append([]peer.ID(nil), host.Network().Peers()...)
+	matcher, _ := multistreamSemverMatcher(IdenaProtocol)
+	host.SetStreamHandlerMatch(IdenaProtocol, matcher, handler)
+
+	for _, id := range preexistingPeers {
+		if err := host.Network().ClosePeer(id); err != nil {
+			failed++
+		} else {
+			closed++
+		}
+	}
+	return closed, failed
 }
 
 func (h *IdenaGossipHandler) background() {
@@ -520,8 +540,7 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 	peer := newPeer(stream, h.cfg.MaxDelay, h.metrics)
 
 	if err := peer.Handshake(h.bcn.Network(), h.bcn.Head.Height(), h.bcn.GenesisInfo(), h.appVersion, uint32(h.peers.Len()), h.OwnPeeringShardId()); err != nil {
-		current := semver.New(h.appVersion)
-		if other, errS := semver.NewVersion(peer.appVersion); errS != nil || other.Major > current.Major || other.Minor >= current.Minor && other.Major == current.Major {
+		if shouldLogHandshakeFailure(h.appVersion, peer.appVersion) {
 			peer.log.Debug("Idena handshake failed", "err", err)
 		}
 		peer.disconnect("")
@@ -571,6 +590,18 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 		h.log.Info("Selected to dc", "id", dcPeer, "shardId", dcShard)
 	}
 	return peer, nil
+}
+
+func shouldLogHandshakeFailure(currentVersion, peerVersion string) bool {
+	current, err := semver.NewVersion(currentVersion)
+	if err != nil {
+		return true
+	}
+	other, err := semver.NewVersion(peerVersion)
+	if err != nil {
+		return true
+	}
+	return other.Major > current.Major || other.Major == current.Major && other.Minor >= current.Minor
 }
 
 func (h *IdenaGossipHandler) unregisterPeer(peerId peer.ID) {

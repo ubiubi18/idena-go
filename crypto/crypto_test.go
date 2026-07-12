@@ -256,3 +256,16 @@ func TestGenerateKeyFromSeed(t *testing.T) {
 	require.Equal(t, key1Bytes, key1AgainBytes)
 	require.NotEqual(t, key1Bytes, key2Bytes)
 }
+
+func TestGenerateKeyFromSeedMatchesLegacyGo117(t *testing.T) {
+	seed := make([]byte, 65)
+	for i := range seed {
+		seed[i] = byte(i)
+	}
+	reader := bytes.NewReader(seed)
+
+	key, err := GenerateKeyFromSeed(reader)
+	require.NoError(t, err)
+	require.Equal(t, "08090a0b0c0d0e0f101259f2ae83a986b98f00bf4a7447eac8c31193e6e1dd68", hex.EncodeToString(FromECDSA(key)))
+	require.Equal(t, 25, reader.Len())
+}

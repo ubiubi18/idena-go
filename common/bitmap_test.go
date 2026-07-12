@@ -2,9 +2,12 @@ package common
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"testing"
+
 	"github.com/RoaringBitmap/roaring"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestBitmap_Size(t *testing.T) {
@@ -116,6 +119,28 @@ func TestBitmap_SerializeSparseRoaringEncoding(t *testing.T) {
 	decoded := NewBitmap(size)
 	require.NoError(t, decoded.Read(buf.Bytes()))
 	require.True(t, bitmap.rmap.Equals(decoded.rmap))
+}
+
+func TestBitmapSerializationMatchesLegacyNode(t *testing.T) {
+	const size = uint32(8888)
+	sparse := NewBitmap(size)
+	sparse.Add(0)
+	sparse.Add(size - 1)
+	sparseData := new(bytes.Buffer)
+	sparse.WriteTo(sparseData)
+	require.Equal(t, "013a3000000100000000000100100000000000b722", hex.EncodeToString(sparseData.Bytes()))
+
+	dense := NewBitmap(size)
+	for i := uint32(0); i < size; i++ {
+		if i%3 == 0 {
+			dense.Add(i)
+		}
+	}
+	denseData := new(bytes.Buffer)
+	dense.WriteTo(denseData)
+	digest := sha256.Sum256(denseData.Bytes())
+	require.Equal(t, 1112, denseData.Len())
+	require.Equal(t, "9ccd4716743d33c9efe2f3120c41ec1b3ba3f61c3ccfa7eebc5f9674cfa43303", hex.EncodeToString(digest[:]))
 }
 
 func TestBitmap_ReadRejectsMalformedData(t *testing.T) {

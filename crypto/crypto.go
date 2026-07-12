@@ -179,16 +179,20 @@ func GenerateKey() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(S256(), rand.Reader)
 }
 
-func GenerateKeyFromSeed(rand io.Reader) (*ecdsa.PrivateKey, error) {
-	b := make([]byte, 32)
-	for {
-		if _, err := io.ReadFull(rand, b); err != nil {
-			return nil, err
-		}
-		if key, err := ToECDSA(b); err == nil {
-			return key, nil
-		}
+func GenerateKeyFromSeed(reader io.Reader) (*ecdsa.PrivateKey, error) {
+	// Preserve the Go 1.17 ecdsa.GenerateKey mapping used by the original
+	// Idena releases. Flip-key derivation depends on this exact 40-byte mapping.
+	params := S256().Params()
+	seed := make([]byte, params.BitSize/8+8)
+	if _, err := io.ReadFull(reader, seed); err != nil {
+		return nil, err
 	}
+
+	k := new(big.Int).SetBytes(seed)
+	nMinusOne := new(big.Int).Sub(params.N, big.NewInt(1))
+	k.Mod(k, nMinusOne)
+	k.Add(k, big.NewInt(1))
+	return ToECDSA(math.PaddedBigBytes(k, params.BitSize/8))
 }
 
 // ValidateSignatureValues verifies whether the signature values are valid with

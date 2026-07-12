@@ -50,6 +50,16 @@ func TestIpfsProxy_Cid(t *testing.T) {
 	require.Equal(EmptyCid, cid)
 }
 
+func TestIpfsProxyCidMatchesLegacyNode(t *testing.T) {
+	cache := proxy.(*ipfsProxy).cidCache
+	cache.Flush()
+	t.Cleanup(cache.Flush)
+
+	c, err := proxy.Cid([]byte("idena-legacy-cid-vector"))
+	require.NoError(t, err)
+	require.Equal(t, "bafkreidepbxikudfkop2lvelq6domhvde445qqfvmufp2pg3cckcclujfe", c.String())
+}
+
 func TestWriteSwarmKeyCreatesPrivateFile(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows does not expose POSIX file mode bits")
@@ -102,7 +112,9 @@ func TestConfigureIpfsUsesFlatfsForNewRepo(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "mount", configured.Datastore.Spec["type"])
 	require.True(t, datastoreHasType(configured.Datastore.Spec, "flatfs"))
+	require.Equal(t, ipfsConf.False, configured.AutoConf.Enabled)
 	require.Equal(t, ipfsConf.False, configured.Swarm.Transports.Network.Websocket)
+	require.Equal(t, ipfsConf.False, configured.AutoTLS.Enabled)
 
 	locked, err := fsrepo.LockedByOtherProcess(dataDir)
 	require.NoError(t, err)
@@ -119,6 +131,8 @@ func TestConfigureIpfsPreservesExistingBadgerRepo(t *testing.T) {
 	configured, err := configureIpfs(testIpfsConfig(dataDir), eventbus.New())
 	require.NoError(t, err)
 	require.Equal(t, "badgerds", configured.Datastore.Spec["type"])
+	require.Equal(t, ipfsConf.False, configured.AutoConf.Enabled)
+	require.Equal(t, ipfsConf.False, configured.AutoTLS.Enabled)
 
 	locked, err := fsrepo.LockedByOtherProcess(dataDir)
 	require.NoError(t, err)

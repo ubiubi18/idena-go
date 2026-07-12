@@ -2,6 +2,8 @@ package wasm
 
 import (
 	"crypto/ecdsa"
+	"crypto/sha256"
+	"encoding/hex"
 	"github.com/idena-network/idena-go/blockchain/attachments"
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
@@ -67,6 +69,7 @@ func TestVm_Erc20(t *testing.T) {
 	receipt := vm.Run(tx, 4000000)
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
+	requireLegacyActionResult(t, receipt, 32638, "a3d6e3cc35f72f4b744d1a020d419a7db3651e891cd62ef66f077b0734a89802")
 
 	appState.State.IterateContractStore(receipt.ContractAddress, nil, nil, func(key []byte, value []byte) bool {
 		t.Logf("key=%v, value=%v\n", key, string(value))
@@ -91,6 +94,7 @@ func TestVm_Erc20(t *testing.T) {
 	receipt = vm.Run(tx, 10000000)
 	t.Logf("%+v\n", receipt)
 	require.True(t, receipt.Success)
+	requireLegacyActionResult(t, receipt, 9785, "db47e746a3c323fd1ae5190b5a971bd0da669e6971738f1cbaaf4e729498bdb7")
 
 	addrBalance := appState.State.GetContractValue(receipt.ContractAddress, append([]byte("b:"), addr.Bytes()...))
 	require.True(t, big.NewInt(transferAmount).Cmp(big.NewInt(0).SetBytes(addrBalance)) == 0)
@@ -116,6 +120,14 @@ func TestVm_Erc20(t *testing.T) {
 	receipt = vm.Run(tx, 10000000)
 	t.Logf("%+v\n", receipt)
 	require.False(t, receipt.Success)
+	requireLegacyActionResult(t, receipt, 8098, "65e7497350acccfe7794484d1afa8df0dee6b3e8b27737fece87eca946b7b180")
+}
+
+func requireLegacyActionResult(t *testing.T, receipt *types.TxReceipt, gasUsed uint64, actionResultSHA256 string) {
+	t.Helper()
+	require.Equal(t, gasUsed, receipt.GasUsed)
+	digest := sha256.Sum256(receipt.ActionResult)
+	require.Equal(t, actionResultSHA256, hex.EncodeToString(digest[:]))
 }
 
 var nonce = uint32(1)

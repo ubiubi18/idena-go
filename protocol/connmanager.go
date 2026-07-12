@@ -173,13 +173,9 @@ func (m *ConnManager) DialRandomPeer() (network.Stream, error) {
 }
 
 func (m *ConnManager) findOrOpenStream(conn network.Conn) (network.Stream, error) {
-	streams := conn.GetStreams()
-	matcher, _ := multistreamSemverMatcher(IdenaProtocol)
-	for _, s := range streams {
-		if matcher(s.Protocol()) {
-			return s, nil
-		}
-	}
+	// Newer libp2p hosts can wrap a stream to complete protocol negotiation
+	// lazily. Conn.GetStreams exposes the underlying stream, so reusing it can
+	// bypass that wrapper and feed multistream bytes to the Idena frame reader.
 	return m.newStream(conn.RemotePeer())
 }
 

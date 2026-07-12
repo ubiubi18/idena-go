@@ -640,7 +640,9 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		ipfsConfig.Swarm.ConnMgr.HighWater = ipfsConf.NewOptionalInteger(int64(cfg.HighWater))
 		ipfsConfig.Provide.DHT.Interval = reproviderInterval
 		ipfsConfig.Provide.Strategy = ipfsConf.NewOptionalString("pinned")
+		ipfsConfig.AutoConf.Enabled = ipfsConf.False
 		ipfsConfig.Swarm.Transports.Network.Websocket = ipfsConf.False
+		ipfsConfig.AutoTLS.Enabled = ipfsConf.False
 		ipfsConfig.Swarm.Transports.Security.Noise = ipfsConf.Disabled
 
 		ipfsConfig.Swarm.RelayClient.Enabled = ipfsConf.True
