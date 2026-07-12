@@ -123,15 +123,22 @@ func NewIdenaGossipHandler(host core.Host, pubsub *pubsub.PubSub, cfg config.P2P
 func (h *IdenaGossipHandler) Start() {
 
 	setHandler := func() {
-		closed, failed := registerIdenaStreamHandler(h.host, h.acceptStream)
+		host := h.host
+		reconnectTargets, closed, failed := registerIdenaStreamHandler(host, h.acceptStream)
 		if closed > 0 || failed > 0 {
 			h.log.Info("Refreshed Idena protocol advertisement", "closedPeers", closed, "failedPeers", failed)
 		}
-		h.connManager = NewConnManager(h.host, h.cfg)
+		h.connManager = NewConnManager(host, h.cfg)
 		notifiee := &notifiee{
 			connManager: h.connManager,
 		}
-		h.host.Network().Notify(notifiee)
+		host.Network().Notify(notifiee)
+		go func() {
+			connected, reconnectFailed := reconnectIdenaPeers(host, reconnectTargets)
+			if connected > 0 || reconnectFailed > 0 {
+				h.log.Info("Reconnected peers after Idena protocol refresh", "connectedPeers", connected, "failedPeers", reconnectFailed)
+			}
+		}()
 	}
 	setHandler()
 
@@ -179,19 +186,35 @@ func (h *IdenaGossipHandler) Start() {
 // registerIdenaStreamHandler reconnects peers established while the embedded
 // IPFS node was starting. Legacy peers otherwise retain an Identify snapshot
 // that does not advertise the handler registered later during node startup.
-func registerIdenaStreamHandler(host core.Host, handler network.StreamHandler) (closed, failed int) {
+func registerIdenaStreamHandler(host core.Host, handler network.StreamHandler) (reconnectTargets []peer.AddrInfo, closed, failed int) {
 	preexistingPeers := append([]peer.ID(nil), host.Network().Peers()...)
 	matcher, _ := multistreamSemverMatcher(IdenaProtocol)
 	host.SetStreamHandlerMatch(IdenaProtocol, matcher, handler)
 
 	for _, id := range preexistingPeers {
+		peerInfo := host.Peerstore().PeerInfo(id)
 		if err := host.Network().ClosePeer(id); err != nil {
 			failed++
 		} else {
 			closed++
+			reconnectTargets = append(reconnectTargets, peerInfo)
 		}
 	}
-	return closed, failed
+	return reconnectTargets, closed, failed
+}
+
+func reconnectIdenaPeers(host core.Host, peers []peer.AddrInfo) (connected, failed int) {
+	for _, peerInfo := range peers {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+		err := host.Connect(ctx, peerInfo)
+		cancel()
+		if err != nil {
+			failed++
+		} else {
+			connected++
+		}
+	}
+	return connected, failed
 }
 
 func (h *IdenaGossipHandler) background() {

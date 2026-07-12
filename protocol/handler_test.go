@@ -1,12 +1,14 @@
 package protocol
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	core "github.com/libp2p/go-libp2p/core"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	libp2pprotocol "github.com/libp2p/go-libp2p/core/protocol"
 )
 
@@ -29,13 +31,33 @@ func (n *recordingNetwork) ClosePeer(id peer.ID) error {
 type recordingHost struct {
 	core.Host
 	network    *recordingNetwork
+	peerstore  *recordingPeerstore
 	protocol   libp2pprotocol.ID
 	matcher    func(libp2pprotocol.ID) bool
 	streamFunc network.StreamHandler
+	connected  []peer.AddrInfo
+}
+
+type recordingPeerstore struct {
+	peerstore.Peerstore
+	peerInfo map[peer.ID]peer.AddrInfo
+}
+
+func (p *recordingPeerstore) PeerInfo(id peer.ID) peer.AddrInfo {
+	return p.peerInfo[id]
 }
 
 func (h *recordingHost) Network() network.Network {
 	return h.network
+}
+
+func (h *recordingHost) Peerstore() peerstore.Peerstore {
+	return h.peerstore
+}
+
+func (h *recordingHost) Connect(_ context.Context, peerInfo peer.AddrInfo) error {
+	h.connected = append(h.connected, peerInfo)
+	return nil
 }
 
 func (h *recordingHost) SetStreamHandlerMatch(id libp2pprotocol.ID, matcher func(libp2pprotocol.ID) bool, handler network.StreamHandler) {
@@ -52,10 +74,16 @@ func TestRegisterIdenaStreamHandlerRefreshesPreexistingPeers(t *testing.T) {
 		peers:      []peer.ID{peerA, peerB},
 		closeError: map[peer.ID]error{peerB: wantError},
 	}
-	host := &recordingHost{network: networkRecorder}
+	host := &recordingHost{
+		network: networkRecorder,
+		peerstore: &recordingPeerstore{peerInfo: map[peer.ID]peer.AddrInfo{
+			peerA: {ID: peerA},
+			peerB: {ID: peerB},
+		}},
+	}
 	handler := func(network.Stream) {}
 
-	closed, failed := registerIdenaStreamHandler(host, handler)
+	reconnectTargets, closed, failed := registerIdenaStreamHandler(host, handler)
 
 	if closed != 1 || failed != 1 {
 		t.Fatalf("registerIdenaStreamHandler() = (%d, %d), want (1, 1)", closed, failed)
@@ -68,5 +96,16 @@ func TestRegisterIdenaStreamHandlerRefreshesPreexistingPeers(t *testing.T) {
 	}
 	if len(networkRecorder.closed) != 2 || networkRecorder.closed[0] != peerA || networkRecorder.closed[1] != peerB {
 		t.Fatalf("closed peers = %v, want [%s %s]", networkRecorder.closed, peerA, peerB)
+	}
+	if len(reconnectTargets) != 1 || reconnectTargets[0].ID != peerA {
+		t.Fatalf("reconnect targets = %v, want peer %s", reconnectTargets, peerA)
+	}
+
+	reconnected, reconnectFailed := reconnectIdenaPeers(host, reconnectTargets)
+	if reconnected != 1 || reconnectFailed != 0 {
+		t.Fatalf("reconnectIdenaPeers() = (%d, %d), want (1, 0)", reconnected, reconnectFailed)
+	}
+	if len(host.connected) != 1 || host.connected[0].ID != peerA {
+		t.Fatalf("connected peers = %v, want peer %s", host.connected, peerA)
 	}
 }
