@@ -8,6 +8,11 @@ Go implementation of the Idena network node.
 > published binary releases. Build from a reviewed commit and verify the
 > resulting binary before using it with a valuable identity.
 
+The coordinated candidate source, Wasm artifacts, toolchains, and immutable
+chain identifiers are recorded in [`compatibility/stack-lock.json`](compatibility/stack-lock.json).
+That lock remains a candidate until every listed legacy differential gate has
+passed; ordinary unit tests do not by themselves authorize a release.
+
 ## Fork status
 
 This branch keeps the Idena consensus rules, chain data formats, transaction
