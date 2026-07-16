@@ -1,9 +1,14 @@
 package compatibility_test
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
+	"path"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/idena-network/idena-go/blockchain"
@@ -54,7 +59,7 @@ func TestReleaseApprovalRequiresEvidenceForEveryGate(t *testing.T) {
 		t.Fatal("compatibility lock has no required gates")
 	}
 	seen := make(map[string]struct{}, len(lock.RequiredGates))
-	sha256 := regexp.MustCompile(`^[0-9a-f]{64}$`)
+	digestPattern := regexp.MustCompile(`^[0-9a-f]{64}$`)
 	for _, gate := range lock.RequiredGates {
 		if _, exists := seen[gate]; exists {
 			t.Fatalf("duplicate required gate %q", gate)
@@ -67,11 +72,32 @@ func TestReleaseApprovalRequiresEvidenceForEveryGate(t *testing.T) {
 		if !exists || result.Status != "passed" {
 			t.Fatalf("approved lock has no passing result for %q", gate)
 		}
-		if len(result.Evidence) < len("https://") || result.Evidence[:len("https://")] != "https://" {
-			t.Fatalf("approved gate %q has no HTTPS evidence URL", gate)
+		evidencePath := path.Clean(result.Evidence)
+		if evidencePath != result.Evidence || !strings.HasPrefix(evidencePath, "compatibility/evidence/") || path.Ext(evidencePath) != ".json" {
+			t.Fatalf("approved gate %q has an unsafe evidence path", gate)
 		}
-		if !sha256.MatchString(result.SHA256) {
+		if !digestPattern.MatchString(result.SHA256) {
 			t.Fatalf("approved gate %q has no evidence digest", gate)
+		}
+		raw, err := os.ReadFile(filepath.Join("..", filepath.FromSlash(evidencePath)))
+		if err != nil {
+			t.Fatalf("approved gate %q evidence cannot be read: %v", gate, err)
+		}
+		if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != result.SHA256 {
+			t.Fatalf("approved gate %q evidence digest drifted", gate)
+		}
+		var evidence struct {
+			Schema       int    `json:"schema"`
+			Gate         string `json:"gate"`
+			Status       string `json:"status"`
+			Source       string `json:"source"`
+			TestedCommit string `json:"testedCommit"`
+		}
+		if err := json.Unmarshal(raw, &evidence); err != nil {
+			t.Fatalf("approved gate %q evidence is invalid JSON: %v", gate, err)
+		}
+		if evidence.Schema != 1 || evidence.Gate != gate || evidence.Status != "passed" || evidence.TestedCommit != wantRuntimeCommit || !strings.HasPrefix(evidence.Source, "https://") {
+			t.Fatalf("approved gate %q evidence metadata is invalid", gate)
 		}
 	}
 	for gate := range lock.GateResults {

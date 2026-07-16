@@ -8,8 +8,14 @@ A release is permitted only after every name in `requiredGates` has a matching
 `gateResults` entry with:
 
 - `status`: `passed`
-- `evidence`: an HTTPS URL to immutable logs or an attestation
-- `sha256`: the lowercase SHA-256 digest of that evidence
+- `evidence`: a JSON path below `compatibility/evidence/`
+- `sha256`: the lowercase SHA-256 digest of that committed JSON file
+
+Each evidence document must use schema `1`, name the gate, record status
+`passed`, pin `testedCommit` to the lock's `idena-go.runtimeCodeCommit`, and
+include an HTTPS `source` URL for the underlying logs or attestation. The
+release check recomputes the digest and validates these fields locally; it does
+not trust a digest-shaped string by itself.
 
 After independently reviewing all evidence, change the top-level status to
 `approved`. The release workflow rejects candidate locks, incomplete evidence,

@@ -28,7 +28,7 @@ git -C "$ROOT_DIR" merge-base --is-ancestor "$runtime_base" HEAD
 unexpected=0
 while IFS= read -r -d '' path; do
   case "$path" in
-    README.md|compatibility/*|scripts/check-compatibility-runtime.sh|.github/workflows/compatibility.yml)
+    README.md|compatibility/*|scripts/check-compatibility-runtime.sh|scripts/check-release-compatibility.sh|scripts/check_release_compatibility.py|scripts/check_release_compatibility_test.go|.github/workflows/compatibility.yml)
       ;;
     *)
       echo "Runtime-affecting path changed after locked source commit: $path" >&2
