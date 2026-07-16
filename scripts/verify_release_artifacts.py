@@ -72,14 +72,17 @@ def verify(lock_file, root_dir, builds_dir, release_tag):
         checksum_parts = checksum_path.read_text(encoding="utf-8").strip().split()
         if len(checksum_parts) != 2:
             fail(f"malformed checksum file for {platform}")
-        checksum_name = checksum_parts[1].lstrip("*")
-        if checksum_parts[0] != actual_digest or checksum_name != asset_name:
+        checksum_name = checksum_parts[1]
+        if checksum_parts[0] != actual_digest or checksum_name not in (
+            asset_name,
+            f"*{asset_name}",
+        ):
             fail(f"checksum file does not match {asset_name}")
 
-    actual_files = {item.name for item in builds_dir.iterdir() if item.is_file()}
-    if actual_files != expected_files:
-        unexpected = sorted(actual_files - expected_files)
-        missing = sorted(expected_files - actual_files)
+    actual_entries = {item.name for item in builds_dir.iterdir()}
+    if actual_entries != expected_files:
+        unexpected = sorted(actual_entries - expected_files)
+        missing = sorted(expected_files - actual_entries)
         fail(f"unexpected release file set; missing={missing}, unexpected={unexpected}")
     print("Release artifacts match independent rebuild evidence")
 
