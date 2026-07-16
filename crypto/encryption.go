@@ -4,13 +4,22 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"github.com/idena-network/idena-go/crypto/sha3"
+	"errors"
 	"io"
+
+	"github.com/idena-network/idena-go/crypto/sha3"
 )
+
+// ErrInvalidCiphertext is returned for truncated or unauthenticated encrypted data.
+var ErrInvalidCiphertext = errors.New("invalid encrypted payload")
 
 func Encrypt(data []byte, passphrase string) ([]byte, error) {
 	key := createHash(passphrase)
-	block, _ := aes.NewCipher(key[:])
+	defer zeroBytes(key[:])
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return nil, err
+	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, err
@@ -25,6 +34,7 @@ func Encrypt(data []byte, passphrase string) ([]byte, error) {
 
 func Decrypt(data []byte, passphrase string) ([]byte, error) {
 	key := createHash(passphrase)
+	defer zeroBytes(key[:])
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return nil, err
@@ -34,10 +44,13 @@ func Decrypt(data []byte, passphrase string) ([]byte, error) {
 		return nil, err
 	}
 	nonceSize := gcm.NonceSize()
+	if len(data) < nonceSize+gcm.Overhead() {
+		return nil, ErrInvalidCiphertext
+	}
 	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidCiphertext
 	}
 	return plaintext, nil
 }

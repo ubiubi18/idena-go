@@ -71,8 +71,9 @@ func (c *Config) ProvideNodeKey(key string, password string, withBackup bool) er
 
 	decrypted, err := crypto.Decrypt(keyBytes, password)
 	if err != nil {
-		return errors.Errorf("error while decrypting key, err: %v", err.Error())
+		return errors.Wrap(err, "error while decrypting key")
 	}
+	defer clear(decrypted)
 
 	ecdsaKey, err := crypto.ToECDSA(decrypted)
 	if err != nil {
