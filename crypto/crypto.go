@@ -28,6 +28,7 @@ import (
 	"os"
 
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/fileutil"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto/sha3"
 )
@@ -171,8 +172,15 @@ func LoadECDSA(file string) (*ecdsa.PrivateKey, error) {
 // SaveECDSA saves a secp256k1 private key to the given file with
 // restrictive permissions. The key data is saved hex-encoded.
 func SaveECDSA(file string, key *ecdsa.PrivateKey) error {
-	k := hex.EncodeToString(FromECDSA(key))
-	return os.WriteFile(file, []byte(k), 0600)
+	if key == nil || key.D == nil || key.Curve != S256() || key.D.Sign() <= 0 || key.D.Cmp(secp256k1N) >= 0 {
+		return errors.New("invalid secp256k1 private key")
+	}
+	rawKey := FromECDSA(key)
+	defer zeroBytes(rawKey)
+	encodedKey := make([]byte, hex.EncodedLen(len(rawKey)))
+	defer zeroBytes(encodedKey)
+	hex.Encode(encodedKey, rawKey)
+	return fileutil.WriteFileAtomic(file, encodedKey, 0600)
 }
 
 func GenerateKey() (*ecdsa.PrivateKey, error) {

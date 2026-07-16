@@ -12,6 +12,8 @@ The coordinated candidate source, Wasm artifacts, toolchains, and immutable
 chain identifiers are recorded in [`compatibility/stack-lock.json`](compatibility/stack-lock.json).
 That lock remains a candidate until every listed legacy differential gate has
 passed; ordinary unit tests do not by themselves authorize a release.
+The evidence format and approval procedure are documented in
+[`compatibility/README.md`](compatibility/README.md).
 
 ## Fork status
 
@@ -34,7 +36,7 @@ introduce a new chain or consensus version.
 - Compressed P2P messages are size-checked before decompression allocation, and
   IPFS routing defaults to client mode unless unsafe routing is explicitly
   enabled.
-- CI runs tests, race-sensitive checks, static analysis, cross-platform builds,
+- CI runs focused race-detector tests, static analysis, cross-platform builds,
   and a repository-specific vulnerability policy before releases.
 
 ### Benefits

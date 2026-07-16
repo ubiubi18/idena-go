@@ -25,6 +25,12 @@ type component struct {
 	RuntimeCodeCommit string `json:"runtimeCodeCommit"`
 }
 
+type gateResult struct {
+	Status   string `json:"status"`
+	Evidence string `json:"evidence"`
+	SHA256   string `json:"sha256"`
+}
+
 type stackLock struct {
 	Schema          int    `json:"schema"`
 	ReleaseID       string `json:"releaseId"`
@@ -34,7 +40,45 @@ type stackLock struct {
 		GossipProtocol          string `json:"gossipProtocol"`
 		ConsensusChangesAllowed bool   `json:"consensusChangesAllowed"`
 	} `json:"chainInvariants"`
-	Components []component `json:"components"`
+	Components    []component           `json:"components"`
+	RequiredGates []string              `json:"requiredGates"`
+	GateResults   map[string]gateResult `json:"gateResults"`
+}
+
+func TestReleaseApprovalRequiresEvidenceForEveryGate(t *testing.T) {
+	lock := loadLock(t)
+	if lock.Status != "candidate" && lock.Status != "approved" {
+		t.Fatalf("unsupported compatibility lock status %q", lock.Status)
+	}
+	if len(lock.RequiredGates) == 0 {
+		t.Fatal("compatibility lock has no required gates")
+	}
+	seen := make(map[string]struct{}, len(lock.RequiredGates))
+	sha256 := regexp.MustCompile(`^[0-9a-f]{64}$`)
+	for _, gate := range lock.RequiredGates {
+		if _, exists := seen[gate]; exists {
+			t.Fatalf("duplicate required gate %q", gate)
+		}
+		seen[gate] = struct{}{}
+		if lock.Status != "approved" {
+			continue
+		}
+		result, exists := lock.GateResults[gate]
+		if !exists || result.Status != "passed" {
+			t.Fatalf("approved lock has no passing result for %q", gate)
+		}
+		if len(result.Evidence) < len("https://") || result.Evidence[:len("https://")] != "https://" {
+			t.Fatalf("approved gate %q has no HTTPS evidence URL", gate)
+		}
+		if !sha256.MatchString(result.SHA256) {
+			t.Fatalf("approved gate %q has no evidence digest", gate)
+		}
+	}
+	for gate := range lock.GateResults {
+		if _, exists := seen[gate]; !exists {
+			t.Fatalf("result provided for unrequired gate %q", gate)
+		}
+	}
 }
 
 func loadLock(t *testing.T) stackLock {

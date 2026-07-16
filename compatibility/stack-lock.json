@@ -108,5 +108,6 @@
     "independent-rebuild-digest-match",
     "secret-scan",
     "dependency-policy"
-  ]
+  ],
+  "gateResults": {}
 }

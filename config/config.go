@@ -5,17 +5,19 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/idena-network/idena-go/common"
-	"github.com/idena-network/idena-go/crypto"
-	"github.com/idena-network/idena-go/log"
-	"github.com/idena-network/idena-go/rpc"
-	"github.com/pkg/errors"
-	"github.com/urfave/cli"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/fileutil"
+	"github.com/idena-network/idena-go/crypto"
+	"github.com/idena-network/idena-go/log"
+	"github.com/idena-network/idena-go/rpc"
+	"github.com/pkg/errors"
+	"github.com/urfave/cli"
 )
 
 const (
@@ -55,8 +57,10 @@ func (c *Config) ProvideNodeKey(key string, password string, withBackup bool) er
 	keyfile := filepath.Join(instanceDir, datadirPrivateKey)
 
 	currentKey, err := crypto.LoadECDSA(keyfile)
-
-	if !withBackup && err == nil {
+	if err != nil && !os.IsNotExist(err) {
+		return errors.Errorf("failed to load existing key, err: %v", err.Error())
+	}
+	if !withBackup && currentKey != nil {
 		return errors.New("key already exists")
 	}
 
@@ -76,8 +80,17 @@ func (c *Config) ProvideNodeKey(key string, password string, withBackup bool) er
 	}
 
 	if withBackup && currentKey != nil {
-		backupFile := filepath.Join(instanceDir, fmt.Sprintf("backup-%v", time.Now().Unix()))
+		backup, err := os.CreateTemp(instanceDir, "backup-*")
+		if err != nil {
+			return errors.Errorf("failed to reserve key backup, err: %v", err.Error())
+		}
+		backupFile := backup.Name()
+		if err := backup.Close(); err != nil {
+			_ = os.Remove(backupFile)
+			return errors.Errorf("failed to close key backup, err: %v", err.Error())
+		}
 		if err := crypto.SaveECDSA(backupFile, currentKey); err != nil {
+			_ = os.Remove(backupFile)
 			return errors.Errorf("failed to backup key, err: %v", err.Error())
 		}
 	}
@@ -141,8 +154,8 @@ func (c *Config) SetApiKey() error {
 	shouldSaveKey := true
 	apiKeyFile := filepath.Join(c.DataDir, apiKeyFileName)
 	if c.RPC.APIKey == "" {
-		data, err := os.ReadFile(apiKeyFile)
-		if err != nil && !os.IsNotExist(err) {
+		data, exists, err := readPrivateFile(apiKeyFile)
+		if err != nil {
 			return err
 		}
 		key := strings.TrimSpace(string(data))
@@ -153,25 +166,46 @@ func (c *Config) SetApiKey() error {
 			}
 			key = hex.EncodeToString(crypto.FromECDSA(randomKey)[:16])
 		} else {
-			shouldSaveKey = false
+			shouldSaveKey = !exists
 		}
 		c.RPC.APIKey = key
 	}
 
 	if shouldSaveKey {
-		f, err := os.OpenFile(apiKeyFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-		if err != nil {
-			return err
-		}
-		if _, err := f.WriteString(c.RPC.APIKey); err != nil {
-			_ = f.Close()
-			return err
-		}
-		if err := f.Close(); err != nil {
-			return err
-		}
+		return fileutil.WriteFileAtomic(apiKeyFile, []byte(c.RPC.APIKey), 0600)
 	}
-	return os.Chmod(apiKeyFile, 0600)
+	return nil
+}
+
+func readPrivateFile(path string) ([]byte, bool, error) {
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, false, errors.Errorf("secret path is not a regular file: %v", path)
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, false, err
+	}
+	defer file.Close()
+	openedInfo, err := file.Stat()
+	if err != nil {
+		return nil, false, err
+	}
+	if !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
+		return nil, false, errors.Errorf("secret path changed while opening: %v", path)
+	}
+	if err := file.Chmod(0600); err != nil {
+		return nil, false, err
+	}
+	data, err := io.ReadAll(file)
+	return data, true, err
 }
 
 func MakeMobileConfig(path string, cfg string) (*Config, error) {

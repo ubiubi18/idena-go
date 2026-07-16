@@ -19,15 +19,18 @@ package crypto
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"encoding/hex"
-	"github.com/stretchr/testify/require"
 	"math/big"
 	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
+	"github.com/stretchr/testify/require"
 )
 
 var testAddrHex = "970e8128ab834e8eac17ab8e3812f010678cf791"
@@ -157,6 +160,65 @@ func TestLoadECDSAFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkKey(key1)
+}
+
+func TestSaveECDSARejectsNilKey(t *testing.T) {
+	err := SaveECDSA(filepath.Join(t.TempDir(), "nodekey"), nil)
+	require.ErrorContains(t, err, "invalid secp256k1 private key")
+}
+
+func TestSaveECDSARejectsMalformedOrDifferentCurveKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nodekey")
+	for _, key := range []*ecdsa.PrivateKey{
+		{},
+		{PublicKey: ecdsa.PublicKey{Curve: elliptic.P256()}, D: big.NewInt(1)},
+	} {
+		err := SaveECDSA(path, key)
+		require.ErrorContains(t, err, "invalid secp256k1 private key")
+	}
+	_, err := os.Stat(path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestSaveECDSAReplacesPermissiveFilePrivately(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose POSIX file mode bits")
+	}
+
+	path := filepath.Join(t.TempDir(), "nodekey")
+	require.NoError(t, os.WriteFile(path, []byte("old"), 0644))
+	key, err := HexToECDSA(testPrivHex)
+	require.NoError(t, err)
+
+	require.NoError(t, SaveECDSA(path, key))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+	loaded, err := LoadECDSA(path)
+	require.NoError(t, err)
+	require.Equal(t, FromECDSA(key), FromECDSA(loaded))
+}
+
+func TestSaveECDSARejectsSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation commonly requires elevated privileges on Windows")
+	}
+
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	link := filepath.Join(dir, "nodekey")
+	require.NoError(t, os.WriteFile(target, []byte("unchanged"), 0600))
+	require.NoError(t, os.Symlink(target, link))
+	key, err := HexToECDSA(testPrivHex)
+	require.NoError(t, err)
+
+	err = SaveECDSA(link, key)
+
+	require.ErrorContains(t, err, "non-regular file")
+	data, readErr := os.ReadFile(target)
+	require.NoError(t, readErr)
+	require.Equal(t, []byte("unchanged"), data)
 }
 
 func TestValidateSignatureValues(t *testing.T) {

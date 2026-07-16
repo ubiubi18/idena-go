@@ -1,12 +1,14 @@
 package config
 
 import (
+	"encoding/hex"
 	"flag"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
+	"github.com/idena-network/idena-go/crypto"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli"
 )
@@ -151,6 +153,80 @@ func TestSetApiKeyTightensExistingFileWhenConfigured(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, cfg.RPC.APIKey, string(data))
 	assertPrivateApiKeyFile(t, apiKeyFile)
+}
+
+func TestSetApiKeyRejectsSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation commonly requires elevated privileges on Windows")
+	}
+
+	cfg := getDefaultConfig(t.TempDir())
+	target := filepath.Join(cfg.DataDir, "target")
+	apiKeyFile := filepath.Join(cfg.DataDir, apiKeyFileName)
+	require.NoError(t, os.WriteFile(target, []byte("target-data"), 0600))
+	require.NoError(t, os.Symlink(target, apiKeyFile))
+
+	err := cfg.SetApiKey()
+
+	require.ErrorContains(t, err, "not a regular file")
+	data, readErr := os.ReadFile(target)
+	require.NoError(t, readErr)
+	require.Equal(t, []byte("target-data"), data)
+}
+
+func TestProvideNodeKeyCreatesUniqueBackups(t *testing.T) {
+	const password = "test-password"
+	cfg := getDefaultConfig(t.TempDir())
+	originalKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	replacementKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	provide := func(keyBytes []byte, withBackup bool) {
+		encrypted, err := crypto.Encrypt(keyBytes, password)
+		require.NoError(t, err)
+		require.NoError(t, cfg.ProvideNodeKey(hex.EncodeToString(encrypted), password, withBackup))
+	}
+	provide(crypto.FromECDSA(originalKey), false)
+	provide(crypto.FromECDSA(replacementKey), true)
+	provide(crypto.FromECDSA(originalKey), true)
+
+	backups, err := filepath.Glob(filepath.Join(cfg.DataDir, "keystore", "backup-*"))
+	require.NoError(t, err)
+	require.Len(t, backups, 2)
+	firstBackup, err := crypto.LoadECDSA(backups[0])
+	require.NoError(t, err)
+	secondBackup, err := crypto.LoadECDSA(backups[1])
+	require.NoError(t, err)
+	require.ElementsMatch(t,
+		[][]byte{crypto.FromECDSA(originalKey), crypto.FromECDSA(replacementKey)},
+		[][]byte{crypto.FromECDSA(firstBackup), crypto.FromECDSA(secondBackup)},
+	)
+}
+
+func TestProvideNodeKeyDoesNotOverwriteMalformedExistingKey(t *testing.T) {
+	const password = "test-password"
+	cfg := getDefaultConfig(t.TempDir())
+	keystoreDir := filepath.Join(cfg.DataDir, "keystore")
+	require.NoError(t, os.MkdirAll(keystoreDir, 0700))
+	keyfile := filepath.Join(keystoreDir, datadirPrivateKey)
+	malformed := []byte("not-a-private-key")
+	require.NoError(t, os.WriteFile(keyfile, malformed, 0600))
+	replacementKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	encrypted, err := crypto.Encrypt(crypto.FromECDSA(replacementKey), password)
+	require.NoError(t, err)
+
+	for _, withBackup := range []bool{false, true} {
+		err := cfg.ProvideNodeKey(hex.EncodeToString(encrypted), password, withBackup)
+		require.ErrorContains(t, err, "failed to load existing key")
+		data, readErr := os.ReadFile(keyfile)
+		require.NoError(t, readErr)
+		require.Equal(t, malformed, data)
+	}
+	backups, err := filepath.Glob(filepath.Join(keystoreDir, "backup-*"))
+	require.NoError(t, err)
+	require.Empty(t, backups)
 }
 
 func assertPrivateApiKeyFile(t *testing.T, path string) {
