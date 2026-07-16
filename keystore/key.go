@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/fileutil"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/pborman/uuid"
 )
@@ -181,25 +182,36 @@ func storeNewKey(ks keyStore, rand io.Reader, auth string) (*Key, Account, error
 }
 
 func writeTemporaryKeyFile(file string, content []byte) (string, error) {
-	// Create the keystore directory with appropriate permissions
-	// in case it is not present yet.
-	const dirPerm = 0700
-	if err := os.MkdirAll(filepath.Dir(file), dirPerm); err != nil {
+	dir := filepath.Dir(file)
+	if err := fileutil.EnsurePrivateDir(dir); err != nil {
 		return "", err
 	}
-	// Atomic write: create a temporary hidden file first
-	// then move it into place. TempFile assigns mode 0600.
-	f, err := os.CreateTemp(filepath.Dir(file), "."+filepath.Base(file)+".tmp")
+	f, err := os.CreateTemp(dir, "."+filepath.Base(file)+".tmp-*")
 	if err != nil {
 		return "", err
 	}
-	if _, err := f.Write(content); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+	tmpName := f.Name()
+	cleanup := func() {
+		_ = f.Close()
+		_ = os.Remove(tmpName)
+	}
+	if err := f.Chmod(0600); err != nil {
+		cleanup()
 		return "", err
 	}
-	f.Close()
-	return f.Name(), nil
+	if _, err := f.Write(content); err != nil {
+		cleanup()
+		return "", err
+	}
+	if err := f.Sync(); err != nil {
+		cleanup()
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return "", err
+	}
+	return tmpName, nil
 }
 
 func writeKeyFile(file string, content []byte) error {
@@ -207,7 +219,8 @@ func writeKeyFile(file string, content []byte) error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(name, file)
+	defer os.Remove(name)
+	return fileutil.ReplaceFileAtomic(name, file)
 }
 
 // keyFileName implements the naming convention for keyfiles:

@@ -50,7 +50,7 @@ type Config struct {
 
 func (c *Config) ProvideNodeKey(key string, password string, withBackup bool) error {
 	instanceDir := filepath.Join(c.DataDir, "keystore")
-	if err := os.MkdirAll(instanceDir, 0700); err != nil {
+	if err := fileutil.EnsurePrivateDir(instanceDir); err != nil {
 		return err
 	}
 
@@ -109,28 +109,28 @@ func (c *Config) NodeKey() (*ecdsa.PrivateKey, error) {
 	}
 
 	instanceDir := filepath.Join(c.DataDir, "keystore")
-	if err := os.MkdirAll(instanceDir, 0700); err != nil {
+	if err := fileutil.EnsurePrivateDir(instanceDir); err != nil {
 		return nil, errors.Wrap(err, "failed to persist node key")
 	}
 
 	keyfile := filepath.Join(instanceDir, datadirPrivateKey)
-
-	if _, err := os.Stat(keyfile); os.IsNotExist(err) {
-		// No persistent key found, generate and store a new one.
-		key, err := crypto.GenerateKey()
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to generate node key")
-		}
-		if err := crypto.SaveECDSA(keyfile, key); err != nil {
-			return nil, errors.Wrap(err, "failed to persist node key")
-		}
+	key, err := crypto.LoadECDSA(keyfile)
+	if err == nil {
 		return key, nil
-	} else if err != nil {
-		return nil, errors.Wrap(err, "failed to check node key file")
+	}
+	if !os.IsNotExist(err) {
+		return nil, errors.Wrap(err, "failed to load node key")
 	}
 
-	key, err := crypto.LoadECDSA(keyfile)
-	return key, errors.Wrap(err, "failed to load node key")
+	// No persistent key found, generate and store a new one.
+	key, err = crypto.GenerateKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to generate node key")
+	}
+	if err := crypto.SaveECDSA(keyfile, key); err != nil {
+		return nil, errors.Wrap(err, "failed to persist node key")
+	}
+	return key, nil
 }
 
 // NodeDB returns the path to the discovery node database.
@@ -143,7 +143,7 @@ func (c *Config) NodeDB() string {
 
 func (c *Config) KeyStoreDataDir() (string, error) {
 	instanceDir := filepath.Join(c.DataDir, "keystore")
-	if err := os.MkdirAll(instanceDir, 0700); err != nil {
+	if err := fileutil.EnsurePrivateDir(instanceDir); err != nil {
 		log.Error(fmt.Sprintf("Failed to create keystore datadir: %v", err))
 		return "", err
 	}

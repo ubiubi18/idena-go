@@ -29,7 +29,7 @@ jobs:
 
       - name: Validate tag
         run: |
-          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
             echo "Unsupported release tag: ${GITHUB_REF_NAME}" >&2
             exit 1
           fi
@@ -121,7 +121,7 @@ jobs:
           CGO_ENABLED: 1
         run: |
           mkdir -p builds
-          go build -mod=readonly -trimpath -buildvcs=true \
+          go build -mod=readonly -trimpath -buildvcs=false \
             -ldflags "-s -w -X main.version=${VERSION}" \
             -o "builds/${ASSET_NAME}" .
           (cd builds && openssl dgst -sha256 -r "${ASSET_NAME}" > "${ASSET_NAME}.sha256")
@@ -144,6 +144,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
       - name: Download build outputs
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -152,21 +154,12 @@ jobs:
           merge-multiple: true
 
       - name: Verify release assets
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          assets=(
-            "idena-node-linux-${version}"
-            "idena-node-linux-aarch64-${version}"
-            "idena-node-win-${version}.exe"
-            "idena-node-mac-${version}"
-            "idena-node-mac-arm64-${version}"
-          )
-          for asset in "${assets[@]}"; do
-            test -f "builds/${asset}"
-            test -f "builds/${asset}.sha256"
-          done
-          test "$(find builds -maxdepth 1 -type f | wc -l)" -eq 10
-          (cd builds && sha256sum --check ./*.sha256)
+        run: >-
+          python3 scripts/verify_release_artifacts.py
+          compatibility/stack-lock.json
+          .
+          builds
+          "${GITHUB_REF_NAME}"
 
       - name: Create draft release
         uses: softprops/action-gh-release@7c4723f7a335432393329f8f1c564994ce50185d # v3

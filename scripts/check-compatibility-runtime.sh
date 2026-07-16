@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCK_FILE="$ROOT_DIR/compatibility/stack-lock.json"
 
+if [[ -n "$(git -C "$ROOT_DIR" status --porcelain --untracked-files=normal)" ]]; then
+  echo "Compatibility runtime boundary requires a clean worktree" >&2
+  exit 1
+fi
+
 runtime_base="$({
   python3 - "$LOCK_FILE" <<'PY'
 import json
@@ -13,13 +18,13 @@ with open(sys.argv[1], encoding="utf-8") as handle:
     payload = json.load(handle)
 for component in payload.get("components", []):
     if component.get("name") == "idena-go":
-        print(component.get("commit", ""))
+        print(component.get("runtimeCodeCommit", ""))
         break
 PY
 } || true)"
 
 if [[ ! "$runtime_base" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "Compatibility lock does not contain a valid idena-go source commit" >&2
+  echo "Compatibility lock does not contain a valid idena-go runtime code commit" >&2
   exit 1
 fi
 git -C "$ROOT_DIR" cat-file -e "$runtime_base^{commit}"

@@ -229,6 +229,30 @@ func TestProvideNodeKeyDoesNotOverwriteMalformedExistingKey(t *testing.T) {
 	require.Empty(t, backups)
 }
 
+func TestNodeKeyTightensLegacyPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose POSIX file mode bits")
+	}
+
+	cfg := getDefaultConfig(t.TempDir())
+	keystoreDir := filepath.Join(cfg.DataDir, "keystore")
+	require.NoError(t, os.MkdirAll(keystoreDir, 0755))
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	keyfile := filepath.Join(keystoreDir, datadirPrivateKey)
+	require.NoError(t, os.WriteFile(keyfile, []byte(hex.EncodeToString(crypto.FromECDSA(key))), 0644))
+
+	loaded, err := cfg.NodeKey()
+	require.NoError(t, err)
+	require.Equal(t, crypto.FromECDSA(key), crypto.FromECDSA(loaded))
+	dirInfo, err := os.Stat(keystoreDir)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0700), dirInfo.Mode().Perm())
+	keyInfo, err := os.Stat(keyfile)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0600), keyInfo.Mode().Perm())
+}
+
 func assertPrivateApiKeyFile(t *testing.T, path string) {
 	t.Helper()
 	if runtime.GOOS == "windows" {

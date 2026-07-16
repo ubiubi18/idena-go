@@ -38,6 +38,7 @@ import (
 	"path/filepath"
 
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/fileutil"
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/pborman/uuid"
@@ -111,20 +112,15 @@ func (ks keyStorePassphrase) StoreKey(filename string, key *Key, auth string) er
 	if err != nil {
 		return err
 	}
+	defer os.Remove(tmpName)
 	if !ks.skipKeyFileVerification {
 		// Verify that we can decrypt the file with the given password.
 		_, err = ks.GetKey(key.Address, tmpName, auth)
 		if err != nil {
-			msg := "An error was encountered when saving and verifying the keystore file. \n" +
-				"This indicates that the keystore is corrupted. \n" +
-				"The corrupted file is stored at \n%v\n" +
-				"Please file a ticket at:\n\n" +
-				"https://github.com/idena-network/idena-go/issues." +
-				"The error was : %s"
-			return fmt.Errorf(msg, tmpName, err)
+			return fmt.Errorf("failed to save and verify encrypted keystore file: %w", err)
 		}
 	}
-	return os.Rename(tmpName, filename)
+	return fileutil.ReplaceFileAtomic(tmpName, filename)
 }
 
 func (ks keyStorePassphrase) JoinPath(filename string) string {

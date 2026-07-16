@@ -221,6 +221,38 @@ func TestSaveECDSARejectsSymlink(t *testing.T) {
 	require.Equal(t, []byte("unchanged"), data)
 }
 
+func TestLoadECDSATightensExistingFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose POSIX file mode bits")
+	}
+
+	path := filepath.Join(t.TempDir(), "nodekey")
+	require.NoError(t, os.WriteFile(path, []byte(testPrivHex), 0644))
+
+	_, err := LoadECDSA(path)
+	require.NoError(t, err)
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
+func TestLoadECDSARejectsSymlinkAndTrailingData(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "nodekey")
+	require.NoError(t, os.WriteFile(keyPath, []byte(testPrivHex+"00"), 0600))
+
+	_, err := LoadECDSA(keyPath)
+	require.ErrorContains(t, err, "invalid private key file length")
+
+	if runtime.GOOS == "windows" {
+		return
+	}
+	link := filepath.Join(dir, "nodekey-link")
+	require.NoError(t, os.Symlink(keyPath, link))
+	_, err = LoadECDSA(link)
+	require.ErrorContains(t, err, "not a regular file")
+}
+
 func TestValidateSignatureValues(t *testing.T) {
 	check := func(expected bool, v byte, r, s *big.Int) {
 		if ValidateSignatureValues(v, r, s, false) != expected {

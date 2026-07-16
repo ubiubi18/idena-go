@@ -99,6 +99,33 @@ func TestKeyStorePassphraseDecryptionFail(t *testing.T) {
 	}
 }
 
+func TestKeyStorePassphraseCleansTemporaryFileAfterVerificationFailure(t *testing.T) {
+	dir := t.TempDir()
+	ks := &keyStorePassphrase{dir, veryLightScryptN, veryLightScryptP, false}
+	key, err := newKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key.Address[0] ^= 0xff
+	filename := filepath.Join(dir, "account.json")
+
+	err = ks.StoreKey(filename, key, "password")
+
+	if err == nil || !strings.Contains(err.Error(), "save and verify") {
+		t.Fatalf("expected verification failure, got %v", err)
+	}
+	temporary, globErr := filepath.Glob(filepath.Join(dir, ".account.json.tmp-*"))
+	if globErr != nil {
+		t.Fatal(globErr)
+	}
+	if len(temporary) != 0 {
+		t.Fatalf("temporary key files were not removed: %v", temporary)
+	}
+	if _, statErr := os.Stat(filename); !os.IsNotExist(statErr) {
+		t.Fatalf("failed key unexpectedly reached destination: %v", statErr)
+	}
+}
+
 func TestImportPreSaleKey(t *testing.T) {
 	dir, ks := tmpKeyStoreIface(t, true)
 	defer os.RemoveAll(dir)

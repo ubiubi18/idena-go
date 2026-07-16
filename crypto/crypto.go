@@ -152,17 +152,42 @@ func HexToECDSA(hexkey string) (*ecdsa.PrivateKey, error) {
 
 // LoadECDSA loads a secp256k1 private key from the given file.
 func LoadECDSA(file string) (*ecdsa.PrivateKey, error) {
-	buf := make([]byte, 64)
+	info, err := os.Lstat(file)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("private key path is not a regular file: %q", file)
+	}
+
 	fd, err := os.Open(file)
 	if err != nil {
 		return nil, err
 	}
 	defer fd.Close()
-	if _, err := io.ReadFull(fd, buf); err != nil {
+	openedInfo, err := fd.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
+		return nil, fmt.Errorf("private key path changed while opening: %q", file)
+	}
+	if err := fd.Chmod(0600); err != nil {
 		return nil, err
 	}
 
-	key, err := hex.DecodeString(string(buf))
+	encoded, err := io.ReadAll(io.LimitReader(fd, 65))
+	if err != nil {
+		return nil, err
+	}
+	defer zeroBytes(encoded)
+	if len(encoded) != 64 {
+		return nil, fmt.Errorf("invalid private key file length: got %d, want 64", len(encoded))
+	}
+
+	key := make([]byte, hex.DecodedLen(len(encoded)))
+	defer zeroBytes(key)
+	_, err = hex.Decode(key, encoded)
 	if err != nil {
 		return nil, err
 	}

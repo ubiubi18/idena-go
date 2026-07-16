@@ -169,6 +169,27 @@ func TestServerMethodExecutionWithoutApiKeyProvided(t *testing.T) {
 	testApiKey(t, false)
 }
 
+func TestAPIKeyMatches(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected string
+		provided string
+		want     bool
+	}{
+		{name: "equal", expected: "0123456789abcdef", provided: "0123456789abcdef", want: true},
+		{name: "same length mismatch", expected: "0123456789abcdef", provided: "0123456789abcdee"},
+		{name: "different length", expected: "0123456789abcdef", provided: "0123456789abcde"},
+		{name: "empty", expected: "", provided: "", want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := apiKeyMatches(test.expected, test.provided); got != test.want {
+				t.Fatalf("apiKeyMatches() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func testApiKey(t *testing.T, sendKey bool) {
 	apiKey := "tempKey"
 	server := NewServer(apiKey)

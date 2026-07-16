@@ -18,6 +18,8 @@ package rpc
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -28,6 +30,12 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/log"
 )
+
+func apiKeyMatches(expected, provided string) bool {
+	expectedDigest := sha256.Sum256([]byte(expected))
+	providedDigest := sha256.Sum256([]byte(provided))
+	return subtle.ConstantTimeCompare(expectedDigest[:], providedDigest[:]) == 1
+}
 
 const MetadataApi = "rpc"
 
@@ -412,7 +420,7 @@ func (s *Server) readRequest(codec ServerCodec) ([]*serverRequest, bool, Error) 
 			continue
 		}
 
-		if s.apiKey != "" && r.key != s.apiKey {
+		if s.apiKey != "" && !apiKeyMatches(s.apiKey, r.key) {
 			requests[i] = &serverRequest{id: r.id, err: &invalidApiKeyError{}}
 			continue
 		}

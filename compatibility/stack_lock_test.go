@@ -122,7 +122,7 @@ func loadLock(t *testing.T) stackLock {
 
 func TestStackLockPinsReviewedRuntime(t *testing.T) {
 	lock := loadLock(t)
-	if lock.Schema != 1 || lock.ReleaseID != wantReleaseID || lock.Status != "candidate" {
+	if lock.Schema != 1 || lock.ReleaseID != wantReleaseID {
 		t.Fatalf("unexpected compatibility lock identity: schema=%d release=%q status=%q", lock.Schema, lock.ReleaseID, lock.Status)
 	}
 	components := make(map[string]component, len(lock.Components))

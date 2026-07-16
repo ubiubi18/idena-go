@@ -5,12 +5,51 @@ import re
 import sys
 
 
+RELEASE_PLATFORMS = (
+    "linux-x64",
+    "linux-arm64",
+    "windows-x64",
+    "macos-x64",
+    "macos-arm64",
+)
+
+
 def fail(message):
     print(f"Release compatibility gate failed: {message}", file=sys.stderr)
     raise SystemExit(1)
 
 
-def validate(lock_file, root_dir):
+def validate_release_artifacts(evidence_payload, digest_pattern):
+    release_tag = evidence_payload.get("releaseTag")
+    if not isinstance(release_tag, str) or not re.fullmatch(
+        r"v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?",
+        release_tag,
+    ):
+        fail("independent rebuild evidence needs a valid releaseTag")
+
+    artifacts = evidence_payload.get("releaseArtifacts")
+    if not isinstance(artifacts, list):
+        fail("independent rebuild evidence needs releaseArtifacts")
+    digests = {}
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            fail("releaseArtifacts entries must be objects")
+        platform = artifact.get("platform")
+        digest = artifact.get("sha256", "")
+        if platform not in RELEASE_PLATFORMS:
+            fail(f"unknown release artifact platform {platform!r}")
+        if platform in digests:
+            fail(f"duplicate release artifact platform {platform!r}")
+        if not digest_pattern.fullmatch(digest):
+            fail(f"release artifact {platform!r} needs a lowercase SHA-256 digest")
+        digests[platform] = digest
+    missing = sorted(set(RELEASE_PLATFORMS) - set(digests))
+    if missing:
+        fail(f"independent rebuild evidence is missing platforms: {', '.join(missing)}")
+    return release_tag, digests
+
+
+def validate(lock_file, root_dir, actual_release_tag=None):
     with open(lock_file, encoding="utf-8") as handle:
         payload = json.load(handle)
     root = Path(root_dir).resolve()
@@ -78,6 +117,13 @@ def validate(lock_file, root_dir):
         source = evidence_payload.get("source")
         if not isinstance(source, str) or not source.startswith("https://"):
             fail(f"gate {gate!r} evidence needs an HTTPS source URL")
+        if gate == "independent-rebuild-digest-match":
+            release_tag, _ = validate_release_artifacts(evidence_payload, digest_pattern)
+            if actual_release_tag is not None and release_tag != actual_release_tag:
+                fail(
+                    f"independent rebuild evidence targets {release_tag!r}, "
+                    f"not release tag {actual_release_tag!r}"
+                )
 
     unknown = sorted(set(results) - set(required))
     if unknown:
@@ -87,6 +133,6 @@ def validate(lock_file, root_dir):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        fail("expected lock file and repository root arguments")
-    validate(sys.argv[1], sys.argv[2])
+    if len(sys.argv) not in (3, 4):
+        fail("expected lock file, repository root, and optional release tag arguments")
+    validate(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) == 4 else None)

@@ -17,6 +17,13 @@ include an HTTPS `source` URL for the underlying logs or attestation. The
 release check recomputes the digest and validates these fields locally; it does
 not trust a digest-shaped string by itself.
 
+The `independent-rebuild-digest-match` evidence must also record the exact
+`releaseTag` and a `releaseArtifacts` entry for each supported platform. Every
+entry contains `platform` and `sha256`; the release job hashes the newly built
+binaries and refuses to publish them unless all five digests match this
+committed evidence. Release builds disable VCS stamping so metadata-only commits
+after `runtimeCodeCommit` do not invalidate independently reproduced binaries.
+
 After independently reviewing all evidence, change the top-level status to
 `approved`. The release workflow rejects candidate locks, incomplete evidence,
 tags outside the default branch, missing artifacts, and checksum mismatches.
