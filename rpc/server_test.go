@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -180,6 +181,11 @@ func TestAPIKeyMatches(t *testing.T) {
 		{name: "same length mismatch", expected: "0123456789abcdef", provided: "0123456789abcdee"},
 		{name: "different length", expected: "0123456789abcdef", provided: "0123456789abcde"},
 		{name: "empty", expected: "", provided: "", want: true},
+		{name: "empty provided", expected: "0123456789abcdef", provided: ""},
+		{name: "empty expected", expected: "", provided: "0123456789abcdef"},
+		{name: "prefix only", expected: "0123456789abcdef", provided: "01234567"},
+		{name: "long equal", expected: strings.Repeat("a", 4096), provided: strings.Repeat("a", 4096), want: true},
+		{name: "long mismatch", expected: strings.Repeat("a", 4096), provided: strings.Repeat("a", 4095) + "b"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

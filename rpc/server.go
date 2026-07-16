@@ -18,7 +18,6 @@ package rpc
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/subtle"
 	"fmt"
 	"reflect"
@@ -32,9 +31,12 @@ import (
 )
 
 func apiKeyMatches(expected, provided string) bool {
-	expectedDigest := sha256.Sum256([]byte(expected))
-	providedDigest := sha256.Sum256([]byte(provided))
-	return subtle.ConstantTimeCompare(expectedDigest[:], providedDigest[:]) == 1
+	// Key length is configuration metadata, not secret key material. Reject it
+	// separately so credential bytes can be compared without hashing them.
+	if len(expected) != len(provided) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(expected), []byte(provided)) == 1
 }
 
 const MetadataApi = "rpc"
