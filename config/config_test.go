@@ -229,6 +229,16 @@ func TestProvideNodeKeyDoesNotOverwriteMalformedExistingKey(t *testing.T) {
 	require.Empty(t, backups)
 }
 
+func TestProvideNodeKeyRejectsTruncatedCiphertext(t *testing.T) {
+	cfg := getDefaultConfig(t.TempDir())
+	keyfile := filepath.Join(cfg.DataDir, "keystore", datadirPrivateKey)
+
+	err := cfg.ProvideNodeKey("00", "password", false)
+
+	require.ErrorIs(t, err, crypto.ErrInvalidCiphertext)
+	require.NoFileExists(t, keyfile)
+}
+
 func TestNodeKeyTightensLegacyPermissions(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows does not expose POSIX file mode bits")
