@@ -35,6 +35,8 @@ while IFS= read -r -d '' path; do
   case "$path" in
     README.md|compatibility/*|scripts/check-compatibility-runtime.sh|scripts/check-release-compatibility.sh|scripts/check_release_compatibility.py|scripts/check_release_compatibility_test.go|scripts/verify_release_artifacts.py|.github/workflows/compatibility.yml)
       ;;
+    *_test.go|testdata/*|*/testdata/*)
+      ;;
     *)
       echo "Runtime-affecting path changed after locked source commit: $path" >&2
       unexpected=1

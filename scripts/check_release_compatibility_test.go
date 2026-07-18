@@ -175,6 +175,53 @@ func TestCompatibilityRuntimeGuardAllowsReleaseVerifierChanges(t *testing.T) {
 	}
 }
 
+func TestCompatibilityRuntimeGuardAllowsGoTestsAndTestdata(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("compatibility runtime validation runs in bash")
+	}
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git is not installed")
+	}
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash is not installed")
+	}
+
+	root := t.TempDir()
+	requireTestNoError(t, os.MkdirAll(filepath.Join(root, "scripts"), 0700))
+	requireTestNoError(t, os.MkdirAll(filepath.Join(root, "compatibility"), 0700))
+	requireTestNoError(t, os.MkdirAll(filepath.Join(root, "api", "testdata"), 0700))
+	script, err := os.ReadFile("check-compatibility-runtime.sh")
+	requireTestNoError(t, err)
+	requireTestNoError(t, os.WriteFile(filepath.Join(root, "scripts", "check-compatibility-runtime.sh"), script, 0700))
+	requireTestNoError(t, os.WriteFile(filepath.Join(root, "runtime.go"), []byte("package runtime\n"), 0600))
+	runTestCommand(t, root, git, "init", "-q")
+	runTestCommand(t, root, git, "config", "user.email", "test@example.com")
+	runTestCommand(t, root, git, "config", "user.name", "Compatibility Test")
+	runTestCommand(t, root, git, "add", ".")
+	runTestCommand(t, root, git, "commit", "-qm", "runtime baseline")
+	runtimeCommit := strings.TrimSpace(runTestCommand(t, root, git, "rev-parse", "HEAD"))
+
+	writeTestJSON(t, filepath.Join(root, "compatibility", "stack-lock.json"), map[string]any{
+		"components": []map[string]any{{
+			"name":              "idena-go",
+			"runtimeCodeCommit": runtimeCommit,
+		}},
+	})
+	requireTestNoError(t, os.WriteFile(filepath.Join(root, "api", "dna_api_test.go"), []byte("package api\n"), 0600))
+	requireTestNoError(t, os.WriteFile(filepath.Join(root, "api", "testdata", "vector.json"), []byte("{}\n"), 0600))
+	runTestCommand(t, root, git, "add", ".")
+	runTestCommand(t, root, git, "commit", "-qm", "add compatibility tests")
+
+	command := exec.Command(bash, filepath.Join(root, "scripts", "check-compatibility-runtime.sh"))
+	command.Dir = root
+	output, err := command.CombinedOutput()
+	if err != nil || !strings.Contains(string(output), "runtime boundary passed") {
+		t.Fatalf("test-only changes were rejected: err=%v output=%s", err, output)
+	}
+}
+
 func TestReleaseArtifactVerifierBindsPublishedBinariesToEvidence(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("release validation runs on Linux")
