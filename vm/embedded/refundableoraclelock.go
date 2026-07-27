@@ -70,7 +70,7 @@ func (e *RefundableOracleLock2) Deploy(args ...[]byte) error {
 	if fee, err := helpers.ExtractUInt64(6, args...); err != nil {
 		return err
 	} else {
-		oracleVotingFee = uint64(math2.MaxInt(0, math2.MinInt(100000, int(fee))))
+		oracleVotingFee = normalizeOracleVotingFee(fee)
 	}
 	e.SetUint64("factEvidenceFee", oracleVotingFee)
 	e.SetOwner(e.ctx.Caller())
@@ -84,6 +84,10 @@ func (e *RefundableOracleLock2) Deploy(args ...[]byte) error {
 	collector.AddRefundableOracleLockDeploy(e.statsCollector, e.ctx.ContractAddr(), oracleVoting, value, successAddr,
 		successAddrErr, failAddr, failAddrErr, refundDelay, depositDeadline, 0, oracleVotingFee, state, sum)
 	return nil
+}
+
+func normalizeOracleVotingFee(fee uint64) uint64 {
+	return math2.Min(100000, fee)
 }
 
 func (e *RefundableOracleLock2) Call(method string, args ...[]byte) error {

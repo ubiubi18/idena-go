@@ -17,6 +17,23 @@ import (
 	"testing"
 )
 
+func TestNormalizeOracleVotingFee(t *testing.T) {
+	tests := []struct {
+		fee      uint64
+		expected uint64
+	}{
+		{fee: 0, expected: 0},
+		{fee: 99999, expected: 99999},
+		{fee: 100000, expected: 100000},
+		{fee: 100001, expected: 100000},
+		{fee: ^uint64(0), expected: 100000},
+	}
+
+	for _, test := range tests {
+		require.Equal(t, test.expected, normalizeOracleVotingFee(test.fee))
+	}
+}
+
 func TestRefundableEvidenceLock_Call(t *testing.T) {
 
 	oracleVotingAddr := common.Address{0x1}
