@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"math"
 	"math/big"
 )
 
@@ -86,7 +87,16 @@ func (e *RefundableOracleLock2) Deploy(args ...[]byte) error {
 	return nil
 }
 
+// normalizeOracleVotingFee clamps the oracle voting fee to [0, 100000] as the
+// network does. Upstream nodes compute
+// uint64(math2.MaxInt(0, math2.MinInt(100000, int(fee)))); on the 64-bit
+// platforms the network runs on, fees of 2^63 and above convert to negative
+// ints and are clamped to 0. The fee is stored in contract state, so this is
+// consensus behavior.
 func normalizeOracleVotingFee(fee uint64) uint64 {
+	if fee > math.MaxInt64 {
+		return 0
+	}
 	return math2.Min(100000, fee)
 }
 

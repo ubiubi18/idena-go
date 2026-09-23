@@ -6,14 +6,17 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	math2 "github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/core/appstate"
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/stretchr/testify/require"
 	dbm "github.com/tendermint/tm-db"
+	"math"
 	"math/big"
 	"math/rand"
+	"strconv"
 	"testing"
 )
 
@@ -26,11 +29,35 @@ func TestNormalizeOracleVotingFee(t *testing.T) {
 		{fee: 99999, expected: 99999},
 		{fee: 100000, expected: 100000},
 		{fee: 100001, expected: 100000},
-		{fee: ^uint64(0), expected: 100000},
+		{fee: math.MaxInt64, expected: 100000},
+		{fee: math.MaxInt64 + 1, expected: 0},
+		{fee: ^uint64(0) - 99999, expected: 0},
+		{fee: ^uint64(0), expected: 0},
 	}
 
 	for _, test := range tests {
-		require.Equal(t, test.expected, normalizeOracleVotingFee(test.fee))
+		require.Equal(t, test.expected, normalizeOracleVotingFee(test.fee), "fee %d", test.fee)
+	}
+}
+
+// The network computes the fee with the upstream expression on 64-bit nodes.
+func TestNormalizeOracleVotingFeeMatchesUpstream64Bit(t *testing.T) {
+	if strconv.IntSize != 64 {
+		t.Skip("the upstream expression depends on a 64-bit int")
+	}
+	upstream := func(fee uint64) uint64 {
+		return uint64(math2.MaxInt(0, math2.MinInt(100000, int(fee))))
+	}
+
+	fees := []uint64{0, 1, 99999, 100000, 100001, math.MaxInt32, math.MaxUint32,
+		math.MaxInt64 - 1, math.MaxInt64, math.MaxInt64 + 1, math.MaxInt64 + 100000,
+		^uint64(0) - 100000, ^uint64(0) - 1, ^uint64(0)}
+	rnd := rand.New(rand.NewSource(1))
+	for i := 0; i < 100000; i++ {
+		fees = append(fees, rnd.Uint64(), rnd.Uint64()>>uint(rnd.Intn(64)))
+	}
+	for _, fee := range fees {
+		require.Equal(t, upstream(fee), normalizeOracleVotingFee(fee), "fee %d", fee)
 	}
 }
 
