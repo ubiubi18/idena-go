@@ -22,6 +22,30 @@ func TestApplyProfileDefaultsToDhtClientRouting(t *testing.T) {
 	require.Equal(t, DefaultIpfsRouting, cfg.IpfsConf.Routing)
 }
 
+func TestDefaultIpfsBootstrapNodesIncludeRefreshedPeers(t *testing.T) {
+	expected := []string{
+		"/ip4/49.12.192.149/tcp/40405/ipfs/QmNqkSwad5HTShxVzFcYLQkRCRjrs9ZhQykqrRTQcdR7xp",
+		"/ip4/147.91.144.55/tcp/40406/ipfs/Qmbas7yV5Z41n9ZvvuDoVpaqMWNPxwrk2jSYPsUx3hVgaF",
+		"/ip4/147.91.144.55/tcp/40405/ipfs/QmdiNHGUWc72ouo92mEUnPVWMFvESDHshWVqLnyAutdN7Q",
+		"/ip4/51.178.138.211/tcp/40405/ipfs/QmTseSBwV9xPN2iEn6ViZbdPbk5MBk1HAD9SKy8B2EgSrY",
+		"/ip4/212.28.76.68/tcp/40415/ipfs/QmVMxHMU7pFf475gQRA158unEQCbmhJz6u3k81nuRueAdp",
+		"/ip6/2a01:4f8:1c17:fd5a::1/tcp/40405/ipfs/QmRH67cpeq5gZ4iUSEgarrmNuFA9axEw1DnJdc3hWUtZ3T",
+	}
+
+	for _, peer := range expected {
+		require.Contains(t, DefaultIpfsBootstrapNodes, peer)
+	}
+	require.Equal(t, len(DefaultIpfsBootstrapNodes), len(uniqueStrings(DefaultIpfsBootstrapNodes)))
+}
+
+func uniqueStrings(values []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		result[value] = struct{}{}
+	}
+	return result
+}
+
 func TestApplyProfilePreservesConfiguredIpfsRouting(t *testing.T) {
 	cfg := getDefaultConfig(DefaultDataDir)
 	cfg.IpfsConf.Routing = "dht"
