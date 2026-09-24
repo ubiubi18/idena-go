@@ -275,3 +275,5 @@ replace github.com/idena-network/idena-wasm-binding => github.com/ubiubi18/idena
 go 1.26.8
 
 tool golang.org/x/vuln/cmd/govulncheck
+
+replace github.com/libp2p/go-libp2p-kad-dht => github.com/ubiubi18/go-libp2p-kad-dht v0.41.1-0.20260924080750-83f1403bcb17
