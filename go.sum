@@ -845,8 +845,6 @@ github.com/libp2p/go-libp2p-asn-util v0.4.1 h1:xqL7++IKD9TBFMgnLPZR6/6iYhawHKHl9
 github.com/libp2p/go-libp2p-asn-util v0.4.1/go.mod h1:d/NI6XZ9qxw67b4e+NgpQexCIiFYJjErASrYW4PFDN8=
 github.com/libp2p/go-libp2p-core v0.2.4/go.mod h1:STh4fdfa5vDYr0/SzYYeqnt+E6KfEV5VxfIrm0bcI0g=
 github.com/libp2p/go-libp2p-core v0.3.0/go.mod h1:ACp3DmS3/N64c2jDzcV429ukDpicbL6+TrrxANBjPGw=
-github.com/libp2p/go-libp2p-kad-dht v0.41.0 h1:sDigz5SgV20Crj8ItJmJpEAM+eJrzC/SaiBweg0gDRw=
-github.com/libp2p/go-libp2p-kad-dht v0.41.0/go.mod h1:2qc4QGLvmIdznYbNg++FF76vp4q2SaBZyr76jHV8xgs=
 github.com/libp2p/go-libp2p-kbucket v0.3.1/go.mod h1:oyjT5O7tS9CQurok++ERgc46YLwEpuGoFq9ubvoUOio=
 github.com/libp2p/go-libp2p-kbucket v0.8.0 h1:QAK7RzKJpYe+EuSEATAaaHYMYLkPDGC18m9jxPLnU8s=
 github.com/libp2p/go-libp2p-kbucket v0.8.0/go.mod h1:JMlxqcEyKwO6ox716eyC0hmiduSWZZl6JY93mGaaqc4=
@@ -1354,6 +1352,8 @@ github.com/tommy-muehle/go-mnd/v2 v2.4.0/go.mod h1:WsUAkMJMYww6l/ufffCD3m+P7LEvr
 github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31/go.mod h1:onvgF043R+lC5RZ8IT9rBXDaEDnpnw/Cl+HFiw+v/7Q=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
 github.com/tv42/httpunix v0.0.0-20191220191345-2ba4b9c3382c/go.mod h1:hzIxponao9Kjc7aWznkXaL4U4TWaDSs8zcsY4Ka08nM=
+github.com/ubiubi18/go-libp2p-kad-dht v0.41.1-0.20260924080750-83f1403bcb17 h1:PAicDuZnIOdu7QemFgigOIxCZksgbHWcewUdoTq2rvg=
+github.com/ubiubi18/go-libp2p-kad-dht v0.41.1-0.20260924080750-83f1403bcb17/go.mod h1:2qc4QGLvmIdznYbNg++FF76vp4q2SaBZyr76jHV8xgs=
 github.com/ubiubi18/idena-wasm-binding v0.0.0-20260923235352-01ccca5cc3c9 h1:MvIZtvfG5+kWnW/EHQzq4K6nWx+FOW0ukR/Q85E6/S0=
 github.com/ubiubi18/idena-wasm-binding v0.0.0-20260923235352-01ccca5cc3c9/go.mod h1:Gaqs/PYOTw9Jr1VQPlR0Be+CcgsuP4sdGmTzzQ5hvQ0=
 github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb h1:Ywfo8sUltxogBpFuMOFRrrSifO788kAFxmvVw31PtQQ=
