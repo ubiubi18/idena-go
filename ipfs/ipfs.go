@@ -639,6 +639,12 @@ func configureIpfs(cfg *config.IpfsConfig, eventBus eventbus.Bus) (*ipfsConf.Con
 		ipfsConfig.Swarm.ConnMgr.LowWater = ipfsConf.NewOptionalInteger(int64(cfg.LowWater))
 		ipfsConfig.Swarm.ConnMgr.HighWater = ipfsConf.NewOptionalInteger(int64(cfg.HighWater))
 		ipfsConfig.Provide.DHT.Interval = reproviderInterval
+		if reproviderInterval != nil && reproviderInterval.WithDefault(ipfsConf.DefaultProvideDHTInterval) == 0 {
+			// Kubo 0.42 requires an explicit choice when periodic reproviding is
+			// disabled. Preserve the previous Interval=0 behavior, which disabled
+			// the entire provider system for low-power nodes.
+			ipfsConfig.Provide.Enabled = ipfsConf.False
+		}
 		ipfsConfig.Provide.Strategy = ipfsConf.NewOptionalString("pinned")
 		ipfsConfig.AutoConf.Enabled = ipfsConf.False
 		ipfsConfig.Swarm.Transports.Network.Websocket = ipfsConf.False

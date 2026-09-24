@@ -115,10 +115,23 @@ func TestConfigureIpfsUsesFlatfsForNewRepo(t *testing.T) {
 	require.Equal(t, ipfsConf.False, configured.AutoConf.Enabled)
 	require.Equal(t, ipfsConf.False, configured.Swarm.Transports.Network.Websocket)
 	require.Equal(t, ipfsConf.False, configured.AutoTLS.Enabled)
+	require.True(t, configured.Provide.Enabled.WithDefault(ipfsConf.DefaultProvideEnabled))
 
 	locked, err := fsrepo.LockedByOtherProcess(dataDir)
 	require.NoError(t, err)
 	require.False(t, locked)
+}
+
+func TestConfigureIpfsDisablesProvidingWhenReproviderIntervalIsZero(t *testing.T) {
+	dataDir := t.TempDir()
+	cfg := testIpfsConfig(dataDir)
+	cfg.ReproviderInterval = "0"
+
+	configured, err := configureIpfs(cfg, eventbus.New())
+	require.NoError(t, err)
+	require.Equal(t, ipfsConf.False, configured.Provide.Enabled)
+	require.Zero(t, configured.Provide.DHT.Interval.WithDefault(ipfsConf.DefaultProvideDHTInterval))
+	require.NoError(t, ipfsConf.ValidateProvideConfig(&configured.Provide))
 }
 
 func TestConfigureIpfsPreservesExistingBadgerRepo(t *testing.T) {
