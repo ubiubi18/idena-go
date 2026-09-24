@@ -4,6 +4,11 @@
 already been proven. Keep its status as `candidate` while evidence is being
 collected.
 
+Pin a runtime commit that already exists on the default branch. Rebase and
+squash merges rewrite pull-request commit IDs, so merge runtime changes first,
+then update the candidate lock and consumer pins to the resulting default-branch
+commit. Verify the runtime boundary again after merging the lock update.
+
 A release is permitted only after every name in `requiredGates` has a matching
 `gateResults` entry with:
 
