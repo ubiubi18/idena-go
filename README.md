@@ -1,5 +1,9 @@
 # Idena Go
 
+## Research disclaimer
+
+This is experimental research software. I cannot guarantee its security, correctness, or fitness for any purpose. Use it at your own risk, take responsibility for your decisions, independently verify changes, and stay vigilant.
+
 Go implementation of the Idena network node.
 
 [![Build Idena](https://github.com/ubiubi18/idena-go/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/ubiubi18/idena-go/actions/workflows/main.yml)
