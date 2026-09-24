@@ -87,7 +87,7 @@ jobs:
           go build -mod=readonly -trimpath -buildvcs=false \
             -ldflags "-s -w -X main.version=${VERSION}" \
             -o "builds/${asset_name}" .
-          (cd builds && openssl dgst -sha256 -r "${asset_name}" > "${asset_name}.sha256")
+          (cd builds && openssl dgst -sha256 -r "${asset_name}" | tr -d '\r' > "${asset_name}.sha256")
 
       - name: Upload candidate artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
