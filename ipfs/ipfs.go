@@ -32,13 +32,8 @@ import (
 	kubolibp2p "github.com/ipfs/kubo/core/node/libp2p"
 	"github.com/ipfs/kubo/plugin/loader"
 	"github.com/ipfs/kubo/repo/fsrepo"
-	dht "github.com/libp2p/go-libp2p-kad-dht"
-	"github.com/libp2p/go-libp2p-kad-dht/amino"
-	"github.com/libp2p/go-libp2p-kad-dht/dual"
-	"github.com/libp2p/go-libp2p-kbucket/peerdiversity"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	libp2pcore "github.com/libp2p/go-libp2p/core"
-	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/multiformats/go-multihash"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -760,7 +755,7 @@ func getNodeConfig(dataDir string) (*core.BuildCfg, error) {
 		Repo:                        repo,
 		Permanent:                   true,
 		Online:                      true,
-		Routing:                     idenaDHTRouting,
+		Routing:                     kubolibp2p.DHTOption,
 		DisableEncryptedConnections: false,
 		ExtraOpts: map[string]bool{
 			"pubsub": true,
@@ -918,51 +913,4 @@ func optionalIpfsDuration(value string) (*ipfsConf.OptionalDuration, error) {
 		return nil, errors.Wrapf(err, "invalid IPFS duration %q", value)
 	}
 	return ipfsConf.NewOptionalDuration(duration), nil
-}
-
-// routingTableDiversityFilter wraps the kad-dht IP diversity filter so that it
-// is applied to the WAN routing table only.
-//
-// kad-dht also applies its own filter type to every query response and drops
-// all peers of a response when more than amino.DefaultMaxPeersPerIPGroup of
-// them share an IP group, looking at all advertised addresses. Idena nodes
-// advertise 127.0.0.1 (and often docker addresses), so every response from
-// the network is dropped, lookups never leave the bootstrap peers, and blocks
-// and flips cannot be found. kad-dht applies the response filter only to its
-// own filter type, so wrapping the filter disables it for query responses.
-type routingTableDiversityFilter struct {
-	peerdiversity.PeerIPGroupFilter
-}
-
-// idenaDHTRouting is kubo's default dual DHT routing (Routing.Type "dht",
-// constructDHTRouting(dht.ModeAuto) in kubo v0.42.0) with the routing table
-// diversity filter wrapped; see routingTableDiversityFilter.
-func idenaDHTRouting(args kubolibp2p.RoutingOptionArgs) (routing.Routing, error) {
-	dhtOpts := []dht.Option{
-		dht.Concurrency(10),
-		dht.Mode(dht.ModeAuto),
-		dht.Datastore(args.Datastore),
-		dht.Validator(args.Validator),
-	}
-	if args.OptimisticProvide {
-		dhtOpts = append(dhtOpts, dht.EnableOptimisticProvide())
-	}
-	if args.OptimisticProvideJobsPoolSize != 0 {
-		dhtOpts = append(dhtOpts, dht.OptimisticProvideJobsPoolSize(args.OptimisticProvideJobsPoolSize))
-	}
-	wanOptions := []dht.Option{
-		dht.BootstrapPeers(args.BootstrapPeers...),
-		dht.RoutingTablePeerDiversityFilter(routingTableDiversityFilter{
-			dht.NewRTPeerDiversityFilter(args.Host, amino.DefaultMaxPeersPerIPGroupPerCpl, amino.DefaultMaxPeersPerIPGroup),
-		}),
-	}
-	var lanOptions []dht.Option
-	if args.LoopbackAddressesOnLanDHT {
-		lanOptions = append(lanOptions, dht.AddressFilter(nil))
-	}
-	return dual.New(args.Ctx, args.Host,
-		dual.DHTOption(dhtOpts...),
-		dual.WanDHTOption(wanOptions...),
-		dual.LanDHTOption(lanOptions...),
-	)
 }
