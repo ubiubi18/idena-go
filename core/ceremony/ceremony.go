@@ -1080,12 +1080,13 @@ func (vc *ValidationCeremony) ApplyNewEpoch(height uint64, appState *appstate.Ap
 	allGoodInviters := make(map[common.Address]*types.InviterValidationResult)
 	var isGodCeremonyCandidate bool
 	isGodUndefined := appState.State.GetIdentity(god).State == state.Undefined
+	evidenceMapsByShard := vc.readEvidenceMapsByShard()
 	for shardId := common.ShardId(1); shardId <= common.ShardId(len(vc.shardCandidates)); shardId++ {
 		shard := vc.shardCandidates[shardId]
 		vc.validationStats.Shards[shardId] = statsTypes.NewValidationStats()
 		stats := vc.validationStats.Shards[shardId]
 		stats.FlipCids = shard.flips
-		approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(shardId), vc.readEvidenceMaps(shardId))
+		approvedCandidates := vc.appState.EvidenceMap.CalculateApprovedCandidates(vc.getCandidatesAddresses(shardId), evidenceMapsByShard[shardId])
 		approvedCandidatesSet := mapset.NewSet()
 		for _, item := range approvedCandidates {
 			approvedCandidatesSet.Add(item)
@@ -1919,16 +1920,50 @@ func (vc *ValidationCeremony) loadAllFlips(ctx context.Context) {
 	log.Info("finished all flips loading", "count", len(flips), "errors", errorsCount)
 }
 
-func (vc *ValidationCeremony) readEvidenceMaps(shardId common.ShardId) [][]byte {
-	maps := vc.epochDb.ReadEvidenceMaps()
-	candidates := map[common.Address]struct{}{}
-	for _, c := range vc.shardCandidates[shardId].candidates {
-		candidates[c.Address] = struct{}{}
+// readEvidenceMapsByShard reads every evidence map from the epoch DB once and
+// groups the maps by the shard(s) of each map's sender, preserving DB
+// (sender-address) order within each shard. This replaces scanning the whole
+// evidence table once per shard (O(shards x maps)) with a single scan (O(maps)).
+//
+// The result is bit-for-bit identical to what the original per-shard reads
+// produced for every shard. In practice candidates are partitioned across
+// shards, so a sender belongs to exactly one shard, but the original code kept
+// a sender's map in every shard whose candidate set contained that sender. To
+// preserve that semantics exactly (and never risk a divergence if the partition
+// invariant were ever violated elsewhere), a sender is indexed to each shard it
+// is a candidate of. A map whose sender is not a candidate in any shard is
+// dropped.
+func (vc *ValidationCeremony) readEvidenceMapsByShard() map[common.ShardId][][]byte {
+	// Build the sender->shards index in shard-id order. Iterating shard ids
+	// ascending (rather than ranging over the shardCandidates map) keeps each
+	// sender's shard list ascending and deduplicated: a sender listed twice
+	// within one shard is recorded once for that shard, matching the original
+	// set-based per-shard membership test.
+	senderShards := make(map[common.Address][]common.ShardId)
+	for shardId := common.ShardId(1); shardId <= common.ShardId(len(vc.shardCandidates)); shardId++ {
+		shard := vc.shardCandidates[shardId]
+		if shard == nil {
+			continue
+		}
+		for _, c := range shard.candidates {
+			existing := senderShards[c.Address]
+			if len(existing) == 0 || existing[len(existing)-1] != shardId {
+				senderShards[c.Address] = append(existing, shardId)
+			}
+		}
 	}
-	var result [][]byte
+	return bucketEvidenceMapsByShard(vc.epochDb.ReadEvidenceMaps(), senderShards)
+}
+
+// bucketEvidenceMapsByShard groups evidence maps by their sender's shard(s),
+// preserving the order in which maps are provided. A map is appended to every
+// shard its sender is a candidate of (senderShards[sender], already ascending
+// and deduplicated); maps whose sender is absent from senderShards are dropped.
+func bucketEvidenceMapsByShard(maps []*database.DbEvidenceMap, senderShards map[common.Address][]common.ShardId) map[common.ShardId][][]byte {
+	result := make(map[common.ShardId][][]byte)
 	for _, m := range maps {
-		if _, ok := candidates[m.Sender]; ok {
-			result = append(result, m.Map)
+		for _, shardId := range senderShards[m.Sender] {
+			result[shardId] = append(result[shardId], m.Map)
 		}
 	}
 	return result
