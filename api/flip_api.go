@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/idena-network/idena-go/blockchain/attachments"
@@ -442,21 +441,28 @@ func (api *FlipApi) Words(hash string) (FlipWordsResponse, error) {
 }
 
 func prepareAnswers(answers []FlipAnswer, flips [][]byte, isShort bool) *types.Answers {
-	findAnswer := func(hash []byte) *FlipAnswer {
-		for _, h := range answers {
-			c, err := cid.Parse(h.Hash)
-			if err == nil && bytes.Compare(c.Bytes(), hash) == 0 {
-				return &h
-			}
+	// Index answers by their flip cid once (parsing each cid a single time)
+	// instead of re-scanning and re-parsing every answer for each flip
+	// (O(flips*answers) with a cid parse per comparison). Keep the first answer
+	// for a given cid, matching the original first-match scan; skip answers whose
+	// Hash does not parse, as the original did.
+	answerByCid := make(map[string]*FlipAnswer, len(answers))
+	for i := range answers {
+		c, err := cid.Parse(answers[i].Hash)
+		if err != nil {
+			continue
 		}
-		return nil
+		key := string(c.Bytes())
+		if _, ok := answerByCid[key]; !ok {
+			answerByCid[key] = &answers[i]
+		}
 	}
 
 	result := types.NewAnswers(uint(len(flips)))
 	reportsCount := 0
 
 	for i, flip := range flips {
-		answer := findAnswer(flip)
+		answer := answerByCid[string(flip)]
 		if answer == nil {
 			continue
 		}
