@@ -10,6 +10,7 @@ import (
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/hexutil"
+	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/deferredtx"
 	"github.com/idena-network/idena-go/subscriptions"
 	"github.com/idena-network/idena-go/vm"
@@ -482,12 +483,23 @@ func (api *ContractApi) ReadData(contract common.Address, key string, format str
 }
 
 func (api *ContractApi) BatchReadData(contract common.Address, keys []KeyWithFormat) []ContractData {
+	// Resolve the read-only snapshot once instead of per key: getReadonlyAppState
+	// is loop-invariant, and reading every key from a single snapshot also makes
+	// the batch a consistent view rather than re-reading the head per key.
+	appState := api.baseApi.getReadonlyAppState()
+	return batchReadContractData(appState.State, contract, keys)
+}
+
+// batchReadContractData reads each key's contract value from a single state
+// snapshot and converts it per the requested format. Keys with no stored value
+// get Error "data is nil"; conversion failures set Error. Order matches keys.
+func batchReadContractData(stateDb *state.StateDB, contract common.Address, keys []KeyWithFormat) []ContractData {
 	res := make([]ContractData, 0, len(keys))
 	for _, keyWithFormat := range keys {
 		data := ContractData{
 			Key: keyWithFormat.Key,
 		}
-		if value := api.baseApi.getReadonlyAppState().State.GetContractValue(contract, []byte(keyWithFormat.Key)); value != nil {
+		if value := stateDb.GetContractValue(contract, []byte(keyWithFormat.Key)); value != nil {
 			var err error
 			data.Value, err = conversion(keyWithFormat.Format, value)
 			if err != nil {
@@ -515,8 +527,11 @@ func (api *ContractApi) ReadonlyCall(args ReadonlyCallArgs) (interface{}, error)
 }
 
 func (api *ContractApi) GetStake(contract common.Address) interface{} {
-	hash := api.baseApi.getReadonlyAppState().State.GetCodeHash(contract)
-	stake := api.baseApi.getReadonlyAppState().State.GetContractStake(contract)
+	// One snapshot for both reads: getReadonlyAppState is loop-invariant here and
+	// reading the code hash and stake from the same state keeps them consistent.
+	stateDb := api.baseApi.getReadonlyAppState().State
+	hash := stateDb.GetCodeHash(contract)
+	stake := stateDb.GetContractStake(contract)
 	return struct {
 		Hash  *common.Hash
 		Stake decimal.Decimal
