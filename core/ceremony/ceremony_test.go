@@ -452,17 +452,80 @@ func Test_getNotApprovedFlips(t *testing.T) {
 	r.True(result.Contains(2))
 }
 
-func Test_flipPos(t *testing.T) {
+// resolveFlipPos mirrors how getNotApprovedFlips uses the index map: present
+// cids return their first index, absent cids resolve to -1 (as the old flipPos
+// linear scan did).
+func resolveFlipPos(positions map[string]int, flip []byte) int {
+	if i, ok := positions[string(flip)]; ok {
+		return i
+	}
+	return -1
+}
+
+func Test_flipPositions(t *testing.T) {
 	flips := [][]byte{
 		{1, 2, 3},
 		{1, 2, 3, 4},
 		{2, 3, 4},
+		{1, 2, 3}, // duplicate of index 0
 	}
+	positions := flipPositions(flips)
 	r := require.New(t)
-	r.Equal(-1, flipPos(flips, []byte{1, 2, 3, 4, 5}))
-	r.Equal(0, flipPos(flips, []byte{1, 2, 3}))
-	r.Equal(1, flipPos(flips, []byte{1, 2, 3, 4}))
-	r.Equal(2, flipPos(flips, []byte{2, 3, 4}))
+	// absent cid -> -1, same as the old flipPos scan
+	r.Equal(-1, resolveFlipPos(positions, []byte{1, 2, 3, 4, 5}))
+	r.Equal(0, resolveFlipPos(positions, []byte{1, 2, 3}))
+	r.Equal(1, resolveFlipPos(positions, []byte{1, 2, 3, 4}))
+	r.Equal(2, resolveFlipPos(positions, []byte{2, 3, 4}))
+	// first occurrence wins for duplicates, matching flipPos first-match
+	r.Equal(0, positions[string([]byte{1, 2, 3})])
+	r.Len(positions, 3)
+}
+
+// linearFlipPos is an independent reimplementation of the removed flipPos: a
+// linear first-match scan using element-wise byte comparison (no map, no string
+// conversion), used as an oracle for the flipPositions index.
+func linearFlipPos(flips [][]byte, flip []byte) int {
+	for i, cur := range flips {
+		if len(cur) != len(flip) {
+			continue
+		}
+		equal := true
+		for j := range cur {
+			if cur[j] != flip[j] {
+				equal = false
+				break
+			}
+		}
+		if equal {
+			return i
+		}
+	}
+	return -1
+}
+
+// Test_flipPositions_MatchesLinearScan is the equivalence guard for the hoist:
+// resolving a flip through the prebuilt index must equal the old linear
+// first-match scan for every probe, across duplicates, absent, nil and empty.
+func Test_flipPositions_MatchesLinearScan(t *testing.T) {
+	r := require.New(t)
+	flipSets := [][][]byte{
+		nil,
+		{},
+		{{1}},
+		{{1, 2, 3}, {1, 2, 3, 4}, {2, 3, 4}},
+		{{1, 2, 3}, {1, 2, 3}, {2}, {}, {1, 2, 3}}, // duplicates + empty
+		{nil, {0}, {0, 0}, nil},                    // nil vs empty vs zero-byte
+	}
+	probes := [][]byte{
+		nil, {}, {0}, {1}, {2}, {1, 2, 3}, {1, 2, 3, 4}, {2, 3, 4}, {9, 9},
+	}
+	for _, flips := range flipSets {
+		positions := flipPositions(flips)
+		for _, p := range probes {
+			r.Equalf(linearFlipPos(flips, p), resolveFlipPos(positions, p),
+				"flips=%v probe=%v", flips, p)
+		}
+	}
 }
 
 func Test_analyzeAuthors(t *testing.T) {

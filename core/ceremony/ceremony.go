@@ -1430,11 +1430,18 @@ func addFlipAnswersToStats(answers map[int]statsTypes.FlipAnswerStats, isShort b
 func (vc *ValidationCeremony) getNotApprovedFlips(approvedCandidates mapset.Set, shardId common.ShardId) mapset.Set {
 	result := mapset.NewSet()
 	shard := vc.shardCandidates[shardId]
+	// Resolve each author flip's position via a cid->index map built once, instead
+	// of scanning shard.flips linearly for every flip of every candidate
+	// (previously O(candidates * flipsPerAuthor * flips) per shard).
+	flipIndexes := flipPositions(shard.flips)
 	for i, c := range shard.candidates {
 		addr := c.Address
 		if !approvedCandidates.Contains(addr) && vc.appState.State.GetRequiredFlips(addr) > 0 {
 			for _, f := range shard.flipsPerAuthor[i] {
-				flipIdx := flipPos(shard.flips, f)
+				flipIdx, ok := flipIndexes[string(f)]
+				if !ok {
+					flipIdx = -1
+				}
 				result.Add(flipIdx)
 			}
 		}
@@ -1442,13 +1449,17 @@ func (vc *ValidationCeremony) getNotApprovedFlips(approvedCandidates mapset.Set,
 	return result
 }
 
-func flipPos(flips [][]byte, flip []byte) int {
-	for i, curFlip := range flips {
-		if bytes.Compare(curFlip, flip) == 0 {
-			return i
+// flipPositions maps each flip cid to its index in flips. The first occurrence
+// wins, matching the previous linear first-match scan (flipPos); a cid absent
+// from flips has no entry, so callers resolve it to -1 as flipPos did.
+func flipPositions(flips [][]byte) map[string]int {
+	positions := make(map[string]int, len(flips))
+	for i, flip := range flips {
+		if _, ok := positions[string(flip)]; !ok {
+			positions[string(flip)] = i
 		}
 	}
-	return -1
+	return positions
 }
 
 func (vc *ValidationCeremony) dropFlips(db *database.EpochDb) {
