@@ -2365,6 +2365,8 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return nil, errors.New("txHash is invalid")
 	}
 
+	recoverSenders(block.Body.Transactions)
+
 	blockRewardCtx := chain.prepareBlockRewardCtx(block.Header.Coinbase(), checkState, block.Height(), prevBlock)
 
 	var totalFee, totalTips *big.Int
