@@ -483,6 +483,9 @@ func (api *ContractApi) ReadData(contract common.Address, key string, format str
 }
 
 func (api *ContractApi) BatchReadData(contract common.Address, keys []KeyWithFormat) []ContractData {
+	if len(keys) == 0 {
+		return []ContractData{}
+	}
 	// Resolve the read-only snapshot once instead of per key: getReadonlyAppState
 	// is loop-invariant, and reading every key from a single snapshot also makes
 	// the batch a consistent view rather than re-reading the head per key.
