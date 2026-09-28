@@ -102,7 +102,11 @@ func TestBatchReadContractData_MatchesPerKeyReads(t *testing.T) {
 	require.Equal(t, hexutil.Encode([]byte("1")), got[3].Value)
 }
 
-func TestBatchReadContractData_Empty(t *testing.T) {
-	appState := newTestAppState(t)
-	require.Empty(t, batchReadContractData(appState.State, common.Address{0x1}, nil))
+func TestBatchReadData_EmptySkipsState(t *testing.T) {
+	api := &ContractApi{}
+	for _, keys := range [][]KeyWithFormat{nil, {}} {
+		got := api.BatchReadData(common.Address{0x1}, keys)
+		require.NotNil(t, got)
+		require.Empty(t, got)
+	}
 }
