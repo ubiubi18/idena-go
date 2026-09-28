@@ -59,6 +59,12 @@ type StateDB struct {
 	db       dbm.DB
 	tree     Tree
 
+	// identitiesIteration, when enabled, keeps one full walk of the identity range and replays it
+	// while the tree is unchanged (see EnableIdentitiesIterationCache).
+	identitiesIterationLock    sync.Mutex
+	identitiesIterationEnabled bool
+	identitiesIteration        *identitiesIteration
+
 	// This map holds 'live' objects, which will get modified while processing a state transition.
 	stateAccounts        map[common.Address]*stateAccount
 	stateAccountsDirty   map[common.Address]struct{}
@@ -1491,7 +1497,72 @@ func (s *StateDB) Root() common.Hash {
 func (s *StateDB) IterateIdentities(fn func(key []byte, value []byte) bool) bool {
 	start := StateDbKeys.IdentityKey(common.MinAddr)
 	end := StateDbKeys.IdentityKey(common.MaxAddr)
-	return s.tree.GetImmutable().IterateRange(start, end, true, fn)
+
+	s.identitiesIterationLock.Lock()
+	enabled, cached := s.identitiesIterationEnabled, s.identitiesIteration
+	s.identitiesIterationLock.Unlock()
+	if !enabled {
+		return s.tree.GetImmutable().IterateRange(start, end, true, fn)
+	}
+	changes, trackable := treeChanges(s.tree)
+	if !trackable {
+		return s.tree.GetImmutable().IterateRange(start, end, true, fn)
+	}
+	if cached != nil && cached.treeChanges == changes {
+		for i := range cached.keys {
+			if fn(cached.keys[i], cached.values[i]) {
+				return true
+			}
+		}
+		return false
+	}
+	walk := &identitiesIteration{treeChanges: changes}
+	stopped := s.tree.GetImmutable().IterateRange(start, end, true, func(key []byte, value []byte) bool {
+		walk.keys = append(walk.keys, key)
+		walk.values = append(walk.values, value)
+		return fn(key, value)
+	})
+	if after, _ := treeChanges(s.tree); !stopped && after == changes {
+		s.identitiesIterationLock.Lock()
+		if s.identitiesIterationEnabled {
+			s.identitiesIteration = walk
+		}
+		s.identitiesIterationLock.Unlock()
+	}
+	return stopped
+}
+
+// identitiesIteration is one full walk of the identity range, taken when the tree's change
+// counter was treeChanges.
+type identitiesIteration struct {
+	treeChanges  uint64
+	keys, values [][]byte
+}
+
+func treeChanges(tree Tree) (uint64, bool) {
+	if t, ok := tree.(interface{ Changes() uint64 }); ok {
+		return t.Changes(), true
+	}
+	return 0, false
+}
+
+// EnableIdentitiesIterationCache makes IterateIdentities walk the identity range of the tree once
+// and replay that walk (same keys, values and order) for as long as the tree is unchanged. Code
+// that iterates over all identities several times without writing the tree in between, such as
+// the epoch processing, then walks the tree only once. The cache holds every identity key and
+// value, so it is meant for a bounded scope: call DisableIdentitiesIterationCache when done.
+func (s *StateDB) EnableIdentitiesIterationCache() {
+	s.identitiesIterationLock.Lock()
+	defer s.identitiesIterationLock.Unlock()
+	s.identitiesIterationEnabled = true
+}
+
+// DisableIdentitiesIterationCache turns the cache off and releases it.
+func (s *StateDB) DisableIdentitiesIterationCache() {
+	s.identitiesIterationLock.Lock()
+	defer s.identitiesIterationLock.Unlock()
+	s.identitiesIterationEnabled = false
+	s.identitiesIteration = nil
 }
 
 func (s *StateDB) IterateAccounts(fn func(key []byte, value []byte) bool) bool {
