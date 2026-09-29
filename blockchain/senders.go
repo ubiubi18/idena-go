@@ -9,13 +9,15 @@ import (
 )
 
 const recoverSendersMinTxs = 16
+const recoverSendersBatchSize = 64
 
-// recoverSenders recovers the senders of a block's transactions on all cores and caches them on
-// the transactions, as types.Sender does, before they are validated and applied in order. Sender
-// recovery is a pure function of the signed transaction, so this only changes when it is
-// computed. Failures are not cached, so an invalid signature fails in sequential validation
-// exactly as before.
+// recoverSenders caches senders for at most one batch before sequential validation. Bounding
+// the batch limits wasted recovery when validation rejects an early transaction. Failures are
+// not cached, so invalid signatures still fail in sequential validation.
 func recoverSenders(txs []*types.Transaction) {
+	if len(txs) > recoverSendersBatchSize {
+		txs = txs[:recoverSendersBatchSize]
+	}
 	if len(txs) < recoverSendersMinTxs {
 		return
 	}

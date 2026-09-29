@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/idena-network/idena-go/blockchain/types"
+	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/stretchr/testify/require"
 )
@@ -83,4 +84,35 @@ func TestRecoverSendersConcurrentWithSender(t *testing.T) {
 	}()
 	recoverSenders(txs)
 	wg.Wait()
+}
+
+func TestRecoverSendersDoesNotWarmBeyondBatch(t *testing.T) {
+	txs := sendersTestTxs(t, recoverSendersBatchSize+1)
+	txs[recoverSendersBatchSize] = decodedTx(t, txs[0])
+	recoverSenders(txs)
+
+	tail := txs[recoverSendersBatchSize]
+	_, err := types.Sender(decodedTx(t, tail))
+	require.NoError(t, err)
+	tail.Signature = []byte{1, 2, 3}
+	_, err = types.Sender(tail)
+	require.Error(t, err, "sender outside the batch must not be cached")
+}
+
+func TestProcessTxsStopsSenderPrefetchAfterInvalidTransaction(t *testing.T) {
+	chain, appState, _, _ := NewTestBlockchain(true, nil)
+	defer chain.SecStore().Destroy()
+
+	txs := sendersTestTxs(t, recoverSendersBatchSize+1)
+	txs[recoverSendersBatchSize] = decodedTx(t, txs[0])
+	txs[0].Signature = []byte{1, 2, 3}
+	_, _, _, _, _, err := chain.processTxs(txs, &txsExecutionContext{appState: appState, header: chain.Head}, false)
+	require.ErrorIs(t, err, validation.InvalidSignature)
+
+	tail := txs[recoverSendersBatchSize]
+	_, err = types.Sender(decodedTx(t, tail))
+	require.NoError(t, err)
+	tail.Signature = []byte{1, 2, 3}
+	_, err = types.Sender(tail)
+	require.Error(t, err, "validation must not prefetch a later batch after rejection")
 }

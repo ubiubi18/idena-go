@@ -1375,6 +1375,9 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 
 	var gasLimitReached bool
 	for i := 0; i < len(txs); i++ {
+		if i%recoverSendersBatchSize == 0 {
+			recoverSenders(txs[i:])
+		}
 		tx := txs[i]
 
 		if isProposal {
@@ -2364,8 +2367,6 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 	if types.DeriveSha(txs) != block.Header.ProposedHeader.TxHash {
 		return nil, errors.New("txHash is invalid")
 	}
-
-	recoverSenders(block.Body.Transactions)
 
 	blockRewardCtx := chain.prepareBlockRewardCtx(block.Header.Coinbase(), checkState, block.Height(), prevBlock)
 
