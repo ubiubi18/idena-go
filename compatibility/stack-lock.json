@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "releaseId": "idena-mainnet-legacy-compat-2026.09.28-rc18",
+  "releaseId": "idena-mainnet-legacy-compat-2026.09.30-rc19",
   "status": "candidate",
   "legacyBaseline": {
     "repository": "https://github.com/idena-network/idena-go.git",
@@ -20,8 +20,8 @@
       "name": "idena-go",
       "role": "node",
       "repository": "https://github.com/ubiubi18/idena-go.git",
-      "commit": "c46b31e3f8ba49b45172cb3ed2e25b0d9be24d86",
-      "runtimeCodeCommit": "c46b31e3f8ba49b45172cb3ed2e25b0d9be24d86"
+      "commit": "a56d3fdf943cf0af755d2434e1421b52ca5deb50",
+      "runtimeCodeCommit": "a56d3fdf943cf0af755d2434e1421b52ca5deb50"
     },
     {
       "name": "idena-wasm-binding",
@@ -78,24 +78,24 @@
   ],
   "consumerPins": {
     "idena-desktop": {
-      "idena-go": "c46b31e3f8ba49b45172cb3ed2e25b0d9be24d86",
+      "idena-go": "a56d3fdf943cf0af755d2434e1421b52ca5deb50",
       "idena-wasm-binding": "01ccca5cc3c94917725964541954a9f20e3412e9"
     },
     "idena-social-contract-runner": {
-      "idena-go": "c46b31e3f8ba49b45172cb3ed2e25b0d9be24d86",
+      "idena-go": "a56d3fdf943cf0af755d2434e1421b52ca5deb50",
       "idena-wasm-binding": "01ccca5cc3c94917725964541954a9f20e3412e9"
     },
     "idena-social-ui": {
       "idena-sdk-js-lite": "cc6e69b9b87aa381398b7839050a4640f46eb5ba"
     },
     "idena-web": {
-      "idena-go": "c46b31e3f8ba49b45172cb3ed2e25b0d9be24d86"
+      "idena-go": "a56d3fdf943cf0af755d2434e1421b52ca5deb50"
     },
     "idena-indexer": {
-      "idena-go": "c46b31e3f8ba49b45172cb3ed2e25b0d9be24d86"
+      "idena-go": "a56d3fdf943cf0af755d2434e1421b52ca5deb50"
     },
     "P2poolBTC": {
-      "idena-go": "c46b31e3f8ba49b45172cb3ed2e25b0d9be24d86"
+      "idena-go": "a56d3fdf943cf0af755d2434e1421b52ca5deb50"
     }
   },
   "requiredGates": [
