@@ -711,6 +711,11 @@ func (chain *Blockchain) applyNewEpoch(appState *appstate.AppState, block *types
 	if !block.Header.Flags().HasFlag(types.ValidationFinished) {
 		return
 	}
+	// The steps below iterate over all identities several times without writing the state tree
+	// in between (state changes are buffered until precommit), so walk the tree once.
+	appState.State.EnableIdentitiesIterationCache()
+	defer appState.State.DisableIdentitiesIterationCache()
+
 	validationResult := chain.applyNewEpochFn(block.Height(), appState, statsCollector)
 	networkSize, validationResults, pools, failed := validationResult.IdentitiesCount, validationResult.ShardResults, validationResult.Pools, validationResult.Failed
 	totalInvitesCount := float32(networkSize) * chain.config.Consensus.InvitesPercent

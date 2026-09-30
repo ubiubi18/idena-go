@@ -7,6 +7,7 @@ import (
 	models "github.com/idena-network/idena-go/protobuf"
 	dbm "github.com/tendermint/tm-db"
 	"sync"
+	"sync/atomic"
 )
 
 type Tree interface {
@@ -43,6 +44,18 @@ func NewMutableTree(db dbm.DB) *MutableTree {
 type MutableTree struct {
 	tree *iavl.MutableTree
 	lock sync.RWMutex
+	// changes counts calls that can modify the tree or switch its version, so that readers can
+	// tell whether the tree is still the one they last saw.
+	changes uint64
+}
+
+// Changes returns a counter that is incremented by every call that can modify the tree.
+func (t *MutableTree) Changes() uint64 {
+	return atomic.LoadUint64(&t.changes)
+}
+
+func (t *MutableTree) changed() {
+	atomic.AddUint64(&t.changes, 1)
 }
 
 func (t *MutableTree) ValidateTree() bool {
@@ -50,10 +63,12 @@ func (t *MutableTree) ValidateTree() bool {
 }
 
 func (t *MutableTree) SetVirtualVersion(version int64) {
+	defer t.changed()
 	t.tree.SetVirtualVersion(version)
 }
 
 func (t *MutableTree) SaveVersionAt(version int64) ([]byte, int64, error) {
+	defer t.changed()
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -61,6 +76,7 @@ func (t *MutableTree) SaveVersionAt(version int64) ([]byte, int64, error) {
 }
 
 func (t *MutableTree) LoadVersionForOverwriting(targetVersion int64) (int64, error) {
+	defer t.changed()
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 	return t.tree.LoadVersionForOverwriting(targetVersion)
@@ -96,6 +112,7 @@ func (t *MutableTree) Version() int64 {
 }
 
 func (t *MutableTree) Load() (int64, error) {
+	defer t.changed()
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -119,6 +136,7 @@ func (t *MutableTree) Get(key []byte) (index int64, value []byte) {
 }
 
 func (t *MutableTree) Set(key, value []byte) bool {
+	defer t.changed()
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -126,6 +144,7 @@ func (t *MutableTree) Set(key, value []byte) bool {
 }
 
 func (t *MutableTree) Remove(key []byte) ([]byte, bool) {
+	defer t.changed()
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -133,6 +152,7 @@ func (t *MutableTree) Remove(key []byte) ([]byte, bool) {
 }
 
 func (t *MutableTree) LoadVersion(targetVersion int64) (int64, error) {
+	defer t.changed()
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -140,6 +160,7 @@ func (t *MutableTree) LoadVersion(targetVersion int64) (int64, error) {
 }
 
 func (t *MutableTree) SaveVersion() ([]byte, int64, error) {
+	defer t.changed()
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -147,6 +168,7 @@ func (t *MutableTree) SaveVersion() ([]byte, int64, error) {
 }
 
 func (t *MutableTree) DeleteVersion(version int64) error {
+	defer t.changed()
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -154,6 +176,7 @@ func (t *MutableTree) DeleteVersion(version int64) error {
 }
 
 func (t *MutableTree) Rollback() {
+	defer t.changed()
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	t.tree.Rollback()
@@ -164,10 +187,12 @@ func (t *MutableTree) AvailableVersions() []int {
 }
 
 func (t *MutableTree) LazyLoad(version int64) (int64, error) {
+	defer t.changed()
 	return t.tree.LazyLoadVersion(version)
 }
 
 func (t *MutableTree) Importer(version int64) (*iavl.Importer, error) {
+	defer t.changed()
 	return t.tree.Import(version)
 }
 
