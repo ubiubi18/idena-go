@@ -9,6 +9,7 @@ import (
 	models "github.com/idena-network/idena-go/protobuf"
 	math2 "math"
 	"math/big"
+	"slices"
 	"sort"
 )
 
@@ -109,7 +110,8 @@ type stateGlobal struct {
 
 type stateStatusSwitch struct {
 	data IdentityStatusSwitch
-	// counts is kept in step with data.Addresses: change the list only through the methods.
+	// counts is kept in step with data.Addresses: change the list only through the methods,
+	// and hand out copies of it.
 	counts addressCounts
 
 	deleted bool
@@ -119,7 +121,7 @@ type stateStatusSwitch struct {
 type stateDelegationSwitch struct {
 	data DelegationSwitch
 	// positions maps each delegator to its first entry in data.Delegations. It is kept in step
-	// with the list: change the list only through the methods.
+	// with the list: change the list only through the methods, and hand out copies of its entries.
 	positions map[common.Address]int
 
 	deleted bool
@@ -128,7 +130,8 @@ type stateDelegationSwitch struct {
 
 type stateDelayedOfflinePenalties struct {
 	data DelayedPenalties
-	// counts is kept in step with data.Identities: change the list only through the methods.
+	// counts is kept in step with data.Identities: change the list only through the methods,
+	// and hand out copies of it.
 	counts  addressCounts
 	deleted bool
 	onDirty func()
@@ -1691,7 +1694,7 @@ func (s *stateStatusSwitch) empty() bool {
 }
 
 func (s *stateStatusSwitch) Addresses() []common.Address {
-	return s.data.Addresses
+	return slices.Clone(s.data.Addresses)
 }
 
 func (s *stateStatusSwitch) Clear() {
@@ -1756,9 +1759,22 @@ func (s *stateDelegationSwitch) Clear() {
 
 func (s *stateDelegationSwitch) DelegationSwitch(sender common.Address) *Delegation {
 	if i, ok := s.positions[sender]; ok {
-		return s.data.Delegations[i]
+		delegation := *s.data.Delegations[i]
+		return &delegation
 	}
 	return nil
+}
+
+func (s *stateDelegationSwitch) Delegations() []*Delegation {
+	if s.data.Delegations == nil {
+		return nil
+	}
+	result := make([]*Delegation, len(s.data.Delegations))
+	for i, d := range s.data.Delegations {
+		delegation := *d
+		result[i] = &delegation
+	}
+	return result
 }
 
 func (s *stateDelegationSwitch) empty() bool {

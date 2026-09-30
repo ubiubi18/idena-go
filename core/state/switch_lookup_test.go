@@ -166,9 +166,9 @@ func TestDelegationSwitchLookupMatchesScan(t *testing.T) {
 			expectedTouches++
 			require.Equal(t, expected, obj.data.Delegations, "trial %v step %v", trial, step)
 			require.Equal(t, expectedTouches, touches)
+			require.Equal(t, expected, obj.Delegations(), "trial %v step %v", trial, step)
 			for _, addr := range addrs {
-				// Callers get the stored entry itself, as the scan returned it.
-				require.True(t, scanDelegationSwitch(obj.data.Delegations, addr) == obj.DelegationSwitch(addr), "trial %v step %v", trial, step)
+				require.Equal(t, scanDelegationSwitch(expected, addr), obj.DelegationSwitch(addr), "trial %v step %v", trial, step)
 			}
 		}
 	}
@@ -204,6 +204,64 @@ func TestSwitchLookupsAfterReload(t *testing.T) {
 	require.False(t, reloaded.HasDelayedOfflinePenalty(d))
 	require.Equal(t, &Delegation{Delegator: e, Delegatee: a}, reloaded.DelegationSwitch(e))
 	require.Nil(t, reloaded.DelegationSwitch(a))
+}
+
+// The getters return copies: changing what they return must leave the stored lists and the
+// lookups built from them in step.
+func TestSwitchGettersReturnCopies(t *testing.T) {
+	stateDb, _ := NewLazy(db.NewMemDB())
+	a, b, c, d := common.Address{0x1}, common.Address{0x2}, common.Address{0x3}, common.Address{0x4}
+
+	require.Empty(t, stateDb.StatusSwitchAddresses())
+	require.Zero(t, stateDb.StatusSwitchAddressesCount())
+	require.Empty(t, stateDb.DelayedOfflinePenalties())
+	require.Zero(t, stateDb.DelayedOfflinePenaltiesCount())
+	require.Empty(t, stateDb.Delegations())
+	require.Zero(t, stateDb.DelegationsCount())
+	require.Nil(t, stateDb.DelegationSwitch(a))
+
+	stateDb.ToggleStatusSwitchAddress(a)
+	stateDb.StatusSwitchAddresses()[0] = b
+	require.Equal(t, []common.Address{a}, stateDb.StatusSwitchAddresses())
+	require.Equal(t, 1, stateDb.StatusSwitchAddressesCount())
+	require.True(t, stateDb.HasStatusSwitchAddresses(a))
+	require.False(t, stateDb.HasStatusSwitchAddresses(b))
+	stateDb.ToggleStatusSwitchAddress(a)
+	require.Empty(t, stateDb.StatusSwitchAddresses())
+	require.Zero(t, stateDb.StatusSwitchAddressesCount())
+	require.False(t, stateDb.HasStatusSwitchAddresses(a))
+
+	stateDb.AddDelayedPenalty(a)
+	stateDb.DelayedOfflinePenalties()[0] = b
+	require.Equal(t, []common.Address{a}, stateDb.DelayedOfflinePenalties())
+	require.Equal(t, 1, stateDb.DelayedOfflinePenaltiesCount())
+	require.True(t, stateDb.HasDelayedOfflinePenalty(a))
+	require.False(t, stateDb.HasDelayedOfflinePenalty(b))
+	stateDb.RemoveDelayedOfflinePenalty(a)
+	require.Empty(t, stateDb.DelayedOfflinePenalties())
+	require.Zero(t, stateDb.DelayedOfflinePenaltiesCount())
+	require.False(t, stateDb.HasDelayedOfflinePenalty(a))
+
+	stateDb.ToggleDelegationAddress(a, c)
+	stateDb.Delegations()[0].Delegator = b
+	stateDb.Delegations()[0].Delegatee = d
+	stateDb.Delegations()[0] = &Delegation{Delegator: b, Delegatee: d}
+	stateDb.DelegationSwitch(a).Delegator = b
+	stateDb.DelegationSwitch(a).Delegatee = d
+	require.Equal(t, []*Delegation{{Delegator: a, Delegatee: c}}, stateDb.Delegations())
+	require.Equal(t, 1, stateDb.DelegationsCount())
+	require.Equal(t, &Delegation{Delegator: a, Delegatee: c}, stateDb.DelegationSwitch(a))
+	require.Nil(t, stateDb.DelegationSwitch(b))
+	// A copy taken earlier does not follow later toggles, and the toggle still finds the stored entry.
+	before := stateDb.DelegationSwitch(a)
+	stateDb.ToggleDelegationAddress(a, common.EmptyAddress)
+	require.Equal(t, &Delegation{Delegator: a, Delegatee: c}, before)
+	require.Equal(t, []*Delegation{{Delegator: a, Delegatee: common.EmptyAddress}}, stateDb.Delegations())
+	require.Equal(t, 1, stateDb.DelegationsCount())
+	stateDb.ClearDelegations()
+	require.Empty(t, stateDb.Delegations())
+	require.Zero(t, stateDb.DelegationsCount())
+	require.Nil(t, stateDb.DelegationSwitch(a))
 }
 
 // BenchmarkStatusSwitchWindow checks and toggles n distinct addresses, as a status switch range

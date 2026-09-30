@@ -30,6 +30,7 @@ import (
 	dbm "github.com/tendermint/tm-db"
 	"io"
 	"math/big"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -1762,6 +1763,10 @@ func (s *StateDB) StatusSwitchAddresses() []common.Address {
 	return statusSwitch.Addresses()
 }
 
+func (s *StateDB) StatusSwitchAddressesCount() int {
+	return len(s.GetOrNewStatusSwitchObject().data.Addresses)
+}
+
 func (s *StateDB) ClearStatusSwitchAddresses() {
 	statusSwitch := s.GetOrNewStatusSwitchObject()
 	statusSwitch.Clear()
@@ -1930,7 +1935,11 @@ func (s *StateDB) SetContractStake(addr common.Address, stake *big.Int) {
 }
 
 func (s *StateDB) Delegations() []*Delegation {
-	return s.GetOrNewDelegationSwitchObject().data.Delegations
+	return s.GetOrNewDelegationSwitchObject().Delegations()
+}
+
+func (s *StateDB) DelegationsCount() int {
+	return len(s.GetOrNewDelegationSwitchObject().data.Delegations)
 }
 
 func (s *StateDB) SetDelegatee(addr common.Address, delegatee common.Address) {
@@ -2010,7 +2019,11 @@ func (s *StateDB) AddDelayedPenalty(addr common.Address) {
 }
 
 func (s *StateDB) DelayedOfflinePenalties() []common.Address {
-	return s.GetOrNewDelayedOfflinePenaltyObject().data.Identities
+	return slices.Clone(s.GetOrNewDelayedOfflinePenaltyObject().data.Identities)
+}
+
+func (s *StateDB) DelayedOfflinePenaltiesCount() int {
+	return len(s.GetOrNewDelayedOfflinePenaltyObject().data.Identities)
 }
 
 func (s *StateDB) ClearDelayedOfflinePenalties() {
