@@ -194,7 +194,8 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 
 // writeTxHistory indexes the transactions and receipts of a stored header if they concern the
 // node's addresses. They are local history only, so a failure does not stop the header chain. It
-// reads both before writing either, so the history of a block is written whole or not at all.
+// keeps body-derived history when receipts cannot be read, while writing no history if the body
+// itself is unavailable.
 func (fs *fastSync) writeTxHistory(header *types.Header) error {
 	if header.ProposedHeader == nil || len(header.ProposedHeader.TxBloom) == 0 {
 		return nil
@@ -210,13 +211,13 @@ func (fs *fastSync) writeTxHistory(header *types.Header) error {
 	if err != nil {
 		return err
 	}
+	fs.chain.WriteTxIndex(header.Hash(), txs)
+	fs.chain.Indexer().HandleBlockTransactions(header, txs)
+
 	receipts, err := fs.GetTxReceipts(header.ProposedHeader.TxReceiptsCid)
 	if err != nil {
 		return err
 	}
-
-	fs.chain.WriteTxIndex(header.Hash(), txs)
-	fs.chain.Indexer().HandleBlockTransactions(header, txs)
 	fs.chain.WriteTxReceipts(header.ProposedHeader.TxReceiptsCid, receipts)
 	return nil
 }

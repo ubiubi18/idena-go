@@ -223,6 +223,14 @@ func (st *fastSyncTest) requireNotIndexed(t *testing.T, header *types.Header) {
 	}
 }
 
+func (st *fastSyncTest) requireTransactionsWithoutReceipts(t *testing.T, header *types.Header) {
+	for _, tx := range st.source.GetBlock(header.Hash()).Body.Transactions {
+		require.NotNil(t, st.fs.chain.GetTxIndex(tx.Hash()))
+		require.NotNil(t, st.savedTx(tx.Hash()))
+		require.Nil(t, st.fs.chain.GetReceipt(tx.Hash()))
+	}
+}
+
 // logged reports whether fast sync logged a record at the level for the header.
 func (st *fastSyncTest) logged(lvl log.Lvl, header *types.Header) bool {
 	for _, r := range st.logs {
@@ -271,7 +279,7 @@ func TestFastSyncAppliesHeadersWhoseTransactionsAreMissing(t *testing.T) {
 	require.False(t, st.logged(log.LvlError, missing))
 }
 
-func TestFastSyncWritesNoHistoryOfBlockWhoseReceiptsAreMissing(t *testing.T) {
+func TestFastSyncPreservesTransactionsWhenReceiptsAreMissing(t *testing.T) {
 	st := newFastSyncTest(t)
 	contract := st.generateContractBlock(t)
 	st.generateBlock(0)
@@ -279,10 +287,10 @@ func TestFastSyncWritesNoHistoryOfBlockWhoseReceiptsAreMissing(t *testing.T) {
 
 	err := st.fs.processBatch(st.batchOf(st.blocks()), 1)
 
-	// The body is served but not the receipts: none of the block's history is written, rather than
-	// its transactions without their receipts.
+	// The body is served but not the receipts: keep its transaction index and address history,
+	// which also drive local effects such as deleting the node's own flip.
 	require.NoError(t, err)
-	st.requireNotIndexed(t, contract)
+	st.requireTransactionsWithoutReceipts(t, contract)
 	require.True(t, st.logged(log.LvlWarn, contract))
 }
 
@@ -303,8 +311,9 @@ func TestFastSyncLogsUndecodableTransactionsAsError(t *testing.T) {
 	// it is logged as an error, and the headers are stored as when the data is missing.
 	require.NoError(t, err)
 	require.Equal(t, last.Hash(), st.fs.chain.PreliminaryHead.Hash())
+	st.requireNotIndexed(t, invalidBody)
+	st.requireTransactionsWithoutReceipts(t, invalidReceipts)
 	for _, header := range []*types.Header{invalidBody, invalidReceipts} {
-		st.requireNotIndexed(t, header)
 		require.True(t, st.logged(log.LvlError, header))
 		require.False(t, st.logged(log.LvlWarn, header))
 	}
