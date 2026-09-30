@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/idena-network/idena-go/api"
 	"github.com/idena-network/idena-go/blockchain"
+	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/blockchain/validation"
 	"github.com/idena-network/idena-go/common/eventbus"
 	util "github.com/idena-network/idena-go/common/ulimit"
@@ -91,14 +92,31 @@ type NodeCtx struct {
 type ceremonyChecker struct {
 	appState *appstate.AppState
 	chain    *blockchain.Blockchain
+
+	mutex   sync.Mutex
+	head    *types.Header
+	height  uint64
+	running bool
 }
 
+// IsRunning is called for every message sent or received, so the answer is read once per head,
+// from the state tree only, instead of building a read-only app state on every call.
 func (checker *ceremonyChecker) IsRunning() bool {
-	appState, _ := checker.appState.Readonly(checker.chain.Head.Height())
-	if appState != nil {
-		return appState.State.ValidationPeriod() >= state.FlipLotteryPeriod
+	head := checker.chain.Head
+	height := head.Height()
+	checker.mutex.Lock()
+	defer checker.mutex.Unlock()
+	if checker.head == head && checker.height == height {
+		return checker.running
 	}
-	return false
+	stateDb, err := checker.appState.State.Readonly(int64(height))
+	if err != nil {
+		return false
+	}
+	checker.head = head
+	checker.height = height
+	checker.running = stateDb.ValidationPeriod() >= state.FlipLotteryPeriod
+	return checker.running
 }
 
 func StartMobileNode(path string, cfg string) string {

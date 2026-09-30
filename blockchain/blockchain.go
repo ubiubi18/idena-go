@@ -88,6 +88,7 @@ type Blockchain struct {
 	upgrader        *upgrade.Upgrader
 	applyNewEpochFn func(height uint64, appState *appstate.AppState, collector collector.StatsCollector) types.TotalValidationResult
 	isSyncing       bool
+	headShards      headShardsCache
 	ipfsLoadQueue   chan *attachments.StoreToIpfsAttachment
 	middlewares     []Middleware
 }
@@ -1374,6 +1375,9 @@ func (chain *Blockchain) processTxs(txs []*types.Transaction, context *txsExecut
 
 	var gasLimitReached bool
 	for i := 0; i < len(txs); i++ {
+		if i%recoverSendersBatchSize == 0 {
+			recoverSenders(txs[i:])
+		}
 		tx := txs[i]
 
 		if isProposal {
@@ -3108,24 +3112,22 @@ func (chain *Blockchain) ipfsLoad() {
 }
 
 func (chain *Blockchain) CoinbaseShard() (common.ShardId, error) {
-	stateDb, err := chain.appState.Readonly(chain.Head.Height())
+	shards, err := chain.headShardsInfo()
 	if err != nil {
 		return common.MultiShard, err
 	}
-	identity := stateDb.State.GetIdentity(chain.coinBaseAddress)
-	return identity.ShiftedShardId(), nil
+	return shards.coinbaseShard, nil
 }
 
 func (chain *Blockchain) ModifiedCoinbaseShard() (common.ShardId, error) {
-	stateDb, err := chain.appState.Readonly(chain.Head.Height())
+	shards, err := chain.headShardsInfo()
 	if err != nil {
 		return common.MultiShard, err
 	}
-	identity := stateDb.State.GetIdentity(chain.coinBaseAddress)
-	if identity.State == state.Undefined || identity.State == state.Invite || identity.State == state.Killed {
+	if shards.coinbaseState == state.Undefined || shards.coinbaseState == state.Invite || shards.coinbaseState == state.Killed {
 		return common.MultiShard, nil
 	}
-	return identity.ShiftedShardId(), nil
+	return shards.coinbaseShard, nil
 }
 
 func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardId {
@@ -3148,11 +3150,11 @@ func (chain *Blockchain) MinimalShard(appState *appstate.AppState) common.ShardI
 }
 
 func (chain *Blockchain) ShardsNum() uint32 {
-	stateDb, err := chain.appState.Readonly(chain.Head.Height())
+	shards, err := chain.headShardsInfo()
 	if err != nil {
 		return 0
 	}
-	return stateDb.State.ShardsNum()
+	return shards.shardsNum
 }
 
 func (chain *Blockchain) identityUpdateHook(identity *state.Identity) {
