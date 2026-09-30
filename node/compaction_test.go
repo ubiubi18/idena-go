@@ -75,3 +75,21 @@ func TestOpenDatabaseCompactsOnlyWithEnoughDataAboveDeepestLevel(t *testing.T) {
 	require.Equal(t, share, shareAfterOpen)
 	require.NoError(t, d.Close())
 }
+
+// A new database has no data at any level: opening it with compact skips the full compaction and
+// leaves a working database.
+func TestOpenDatabaseEmptyDirectory(t *testing.T) {
+	d, err := OpenDatabase(t.TempDir(), "test", 16, 16, true)
+	require.NoError(t, err)
+	goLevelDB := d.(*db.GoLevelDB).DB()
+	var stats leveldb.DBStats
+	require.NoError(t, goLevelDB.Stats(&stats))
+	require.Zero(t, shareAboveDeepestLevel(stats.LevelSizes))
+	require.False(t, needsFullCompaction(goLevelDB))
+
+	require.NoError(t, d.Set([]byte("key"), []byte("value")))
+	value, err := d.Get([]byte("key"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("value"), value)
+	require.NoError(t, d.Close())
+}
