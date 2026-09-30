@@ -45,9 +45,10 @@ type stackLock struct {
 		GossipProtocol          string `json:"gossipProtocol"`
 		ConsensusChangesAllowed bool   `json:"consensusChangesAllowed"`
 	} `json:"chainInvariants"`
-	Components    []component           `json:"components"`
-	RequiredGates []string              `json:"requiredGates"`
-	GateResults   map[string]gateResult `json:"gateResults"`
+	Components    []component                  `json:"components"`
+	ConsumerPins  map[string]map[string]string `json:"consumerPins"`
+	RequiredGates []string                     `json:"requiredGates"`
+	GateResults   map[string]gateResult        `json:"gateResults"`
 }
 
 func TestReleaseApprovalRequiresEvidenceForEveryGate(t *testing.T) {
@@ -134,6 +135,17 @@ func TestStackLockPinsReviewedRuntime(t *testing.T) {
 	}
 	if got := components["idena-go"]; got.Commit != wantNodeCommit || got.RuntimeCodeCommit != wantRuntimeCommit {
 		t.Fatalf("idena-go lock drifted: commit=%q runtime=%q", got.Commit, got.RuntimeCodeCommit)
+	}
+	for _, consumer := range []string{"idena-desktop", "idena-social-contract-runner", "idena-web", "idena-indexer", "P2poolBTC"} {
+		pins, exists := lock.ConsumerPins[consumer]
+		if !exists || pins["idena-go"] != wantNodeCommit {
+			t.Fatalf("%s idena-go pin drifted: %q", consumer, pins["idena-go"])
+		}
+	}
+	for consumer, pins := range lock.ConsumerPins {
+		if commit, exists := pins["idena-go"]; exists && commit != wantNodeCommit {
+			t.Fatalf("%s idena-go pin drifted: %q", consumer, commit)
+		}
 	}
 	if got := components["idena-wasm-binding"].Commit; got != wantBindingCommit {
 		t.Fatalf("binding lock drifted: %q", got)

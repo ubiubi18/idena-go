@@ -52,8 +52,12 @@ func TestReleaseCompatibilityValidatorVerifiesEvidenceDigest(t *testing.T) {
 		"components": []map[string]any{
 			{
 				"name":              "idena-go",
+				"commit":            testedCommit,
 				"runtimeCodeCommit": testedCommit,
 			},
+		},
+		"consumerPins": map[string]any{
+			"idena-desktop": map[string]any{"idena-go": testedCommit},
 		},
 	}
 	lockPath := filepath.Join(root, "compatibility", "stack-lock.json")
@@ -72,6 +76,22 @@ func TestReleaseCompatibilityValidatorVerifiesEvidenceDigest(t *testing.T) {
 	output, err = exec.Command(python, "check_release_compatibility.py", lockPath, root).CombinedOutput()
 	if err == nil || !strings.Contains(string(output), "digest does not match") {
 		t.Fatalf("mismatched digest was not rejected: err=%v output=%s", err, output)
+	}
+
+	lock["gateResults"].(map[string]any)[gate].(map[string]any)["sha256"] = digest
+	lock["consumerPins"].(map[string]any)["idena-desktop"].(map[string]any)["idena-go"] = strings.Repeat("f", 40)
+	writeTestJSON(t, lockPath, lock)
+	output, err = exec.Command(python, "check_release_compatibility.py", lockPath, root).CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "idena-go pin") {
+		t.Fatalf("mismatched consumer pin was not rejected: err=%v output=%s", err, output)
+	}
+
+	lock["consumerPins"].(map[string]any)["idena-desktop"].(map[string]any)["idena-go"] = testedCommit
+	lock["components"].([]map[string]any)[0]["commit"] = strings.Repeat("f", 40)
+	writeTestJSON(t, lockPath, lock)
+	output, err = exec.Command(python, "check_release_compatibility.py", lockPath, root).CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "component commit") {
+		t.Fatalf("mismatched component commit was not rejected: err=%v output=%s", err, output)
 	}
 }
 
@@ -284,8 +304,12 @@ func TestReleaseArtifactVerifierBindsPublishedBinariesToEvidence(t *testing.T) {
 		},
 		"components": []map[string]any{{
 			"name":              "idena-go",
+			"commit":            testedCommit,
 			"runtimeCodeCommit": testedCommit,
 		}},
+		"consumerPins": map[string]any{
+			"idena-desktop": map[string]any{"idena-go": testedCommit},
+		},
 	}
 	lockPath := filepath.Join(root, "compatibility", "stack-lock.json")
 	writeTestJSON(t, lockPath, lock)
