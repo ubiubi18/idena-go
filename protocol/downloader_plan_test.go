@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"testing"
+	"time"
 
 	"github.com/idena-network/idena-go/blockchain"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -57,6 +58,19 @@ func TestChooseSyncPlan(t *testing.T) {
 	}
 }
 
+func TestSnapshotWaitFallsBackToFullSync(t *testing.T) {
+	var d Downloader
+	started := time.Now()
+	cfg := &config.SyncConfig{FastSync: true, ForceFullSync: 100}
+	wait := chooseSyncPlan(cfg, 1000, 5000, headersAt(4000), nil, 0)
+	require.Equal(t, planWaitForSnapshot, d.limitSnapshotWait(wait, started))
+	require.Equal(t, planWaitForSnapshot, d.limitSnapshotWait(wait, started.Add(maxSnapshotWait-time.Second)))
+	require.Equal(t, planFullSync, d.limitSnapshotWait(wait, started.Add(maxSnapshotWait)))
+	// A usable snapshot still gets tried even after the wait limit.
+	fast := chooseSyncPlan(cfg, 1000, 5000, headersAt(4000), &snapshot.Manifest{Height: 4500}, 0)
+	require.Equal(t, planFastSync, d.limitSnapshotWait(fast, started.Add(maxSnapshotWait)))
+}
+
 func TestDownloaderCountsFailedSnapshots(t *testing.T) {
 	chain, _, _, _ := blockchain.NewTestBlockchain(false, nil)
 	sm := state.NewSnapshotManager(db.NewMemDB(), nil, eventbus.New(), nil, nil)
@@ -92,5 +106,7 @@ func TestDownloaderCountsFailedSnapshots(t *testing.T) {
 
 	// Headers no longer kept (the fast sync completed, or a full sync dropped them): the count starts again.
 	chain.PreliminaryHead = nil
+	d.snapshotWaitStarted = time.Now()
 	require.Equal(t, 0, d.failedSnapshotCount())
+	require.True(t, d.snapshotWaitStarted.IsZero())
 }

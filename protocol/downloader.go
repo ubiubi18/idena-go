@@ -70,7 +70,8 @@ type Downloader struct {
 	subManager           *subscriptions.Manager
 	upgrader             *upgrade.Upgrader
 	// failedSnapshots holds the heights of the snapshots that the fast sync of the kept headers gave up on.
-	failedSnapshots map[uint64]struct{}
+	failedSnapshots     map[uint64]struct{}
+	snapshotWaitStarted time.Time
 }
 
 func (d *Downloader) IsSyncing() bool {
@@ -304,6 +305,9 @@ var waitForSnapshotDelay = time.Minute
 // downloader drops the headers and uses full sync.
 const maxFailedSnapshots = 3
 
+// A new snapshot may be hours away, but missing manifests must not prevent full sync forever.
+const maxSnapshotWait = 12 * time.Hour
+
 func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64) {
 	head := d.chain.Head.Height()
 	var manifest *snapshot.Manifest
@@ -312,7 +316,12 @@ func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64)
 	}
 
 	failedSnapshots := d.failedSnapshotCount()
-	switch chooseSyncPlan(d.cfg.Sync, head, d.top, d.chain.PreliminaryHead, manifest, failedSnapshots) {
+	selected := chooseSyncPlan(d.cfg.Sync, head, d.top, d.chain.PreliminaryHead, manifest, failedSnapshots)
+	plan := d.limitSnapshotWait(selected, time.Now())
+	if selected == planWaitForSnapshot && plan == planFullSync {
+		d.log.Warn("Snapshot wait limit reached: falling back to full sync", "limit", maxSnapshotWait)
+	}
+	switch plan {
 	case planFastSync:
 		d.log.Info("Fast sync will be used")
 		return NewFastSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, manifest, d.sm, d.bus, d.secStore.GetAddress(), d.keyStore, d.subManager, d.upgrader), manifest.Height
@@ -328,6 +337,19 @@ func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64)
 		top := d.top
 		return NewFullSync(d.pm, d.log, d.chain, d.ipfs, d.appState, d.potentialForkedPeers, top, d.statsCollector), top
 	}
+}
+
+func (d *Downloader) limitSnapshotWait(plan syncPlan, now time.Time) syncPlan {
+	if plan != planWaitForSnapshot {
+		return plan
+	}
+	if d.snapshotWaitStarted.IsZero() {
+		d.snapshotWaitStarted = now
+	}
+	if now.Sub(d.snapshotWaitStarted) >= maxSnapshotWait {
+		return planFullSync
+	}
+	return plan
 }
 
 // chooseSyncPlan picks fast sync when a snapshot lies far enough above the chain, and full sync
@@ -359,6 +381,7 @@ func chooseSyncPlan(cfg *config.SyncConfig, head, top uint64, preliminaryHead *t
 func (d *Downloader) failedSnapshotCount() int {
 	if d.chain.PreliminaryHead == nil {
 		d.failedSnapshots = nil
+		d.snapshotWaitStarted = time.Time{}
 	}
 	return len(d.failedSnapshots)
 }
