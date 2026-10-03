@@ -1,6 +1,44 @@
 package protocol
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/core/state/snapshot"
+	"github.com/idena-network/idena-go/events"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSnapshotManifestReachesConnectedPeers(t *testing.T) {
+	bus := eventbus.New()
+	h := &IdenaGossipHandler{bus: bus, peers: newPeerSet()}
+	h.subscribeSnapshotManifests()
+	peers := []*protoPeer{
+		{id: peer.ID("peer-a"), highPriorityRequests: make(chan *request, 1), finished: make(chan struct{})},
+		{id: peer.ID("peer-b"), highPriorityRequests: make(chan *request, 1), finished: make(chan struct{})},
+	}
+	for _, p := range peers {
+		require.NoError(t, h.peers.Register(p))
+	}
+	want := &snapshot.Manifest{CidV2: []byte{1, 2, 3}, Root: common.Hash{4}, Height: 1000}
+	bus.Publish(&events.NewSnapshotManifestEvent{Manifest: want})
+	for _, p := range peers {
+		select {
+		case msg := <-p.highPriorityRequests:
+			require.Equal(t, uint64(SnapshotManifest), msg.msgcode)
+			require.Equal(t, common.MultiShard, msg.shardId)
+			data, err := toBytes(msg.msgcode, msg.data)
+			require.NoError(t, err)
+			var decoded snapshot.Manifest
+			require.NoError(t, decoded.FromBytes(data))
+			require.Equal(t, want, &decoded)
+		default:
+			t.Fatalf("connected peer %s did not receive the new manifest", p.id)
+		}
+	}
+}
 
 func TestShouldLogHandshakeFailure(t *testing.T) {
 	tests := []struct {

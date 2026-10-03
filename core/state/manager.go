@@ -124,8 +124,7 @@ func (m *SnapshotManager) createSnapshot(height uint64) (root common.Hash) {
 
 	cidV2, root, filePath := m.createShapshotForVersion(height, SnapshotVersionV2)
 	if cidV2 != nil {
-		m.clearFs([]string{filePath})
-		m.writeLastManifest(cidV2, root, height, filePath)
+		m.StoreSnapshotManifest(&snapshot.Manifest{CidV2: cidV2, Root: root, Height: height}, filePath)
 	}
 	return root
 }
@@ -172,8 +171,14 @@ func (m *SnapshotManager) clearSnapshotFolder(excludedFiles []string) {
 	}
 }
 
-func (m *SnapshotManager) writeLastManifest(snapshotCidV2 []byte, root common.Hash, height uint64, fileV2 string) {
-	m.repo.WriteLastSnapshotManifest(snapshotCidV2, root, height, fileV2)
+// StoreSnapshotManifest advertises a locally created or successfully verified snapshot.
+func (m *SnapshotManager) StoreSnapshotManifest(manifest *snapshot.Manifest, filePath string) {
+	m.clearFs([]string{filePath})
+	if err := m.repo.WriteLastSnapshotManifest(manifest.CidV2, manifest.Root, manifest.Height, filePath); err != nil {
+		m.log.Error("Cannot save snapshot manifest", "err", err)
+		return
+	}
+	m.bus.Publish(&events.NewSnapshotManifestEvent{Manifest: manifest})
 }
 
 func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePath string, version SnapshotVersion, err error) {
@@ -229,16 +234,6 @@ func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePat
 	}()
 
 	wg.Wait()
-
-	if loadToErr == nil {
-		m.clearFs([]string{filePath})
-		var filePath2 string
-
-		if version == SnapshotVersionV2 {
-			filePath2 = filePath
-		}
-		m.writeLastManifest(snapshot.CidV2, snapshot.Root, snapshot.Height, filePath2)
-	}
 
 	return filePath, version, loadToErr
 }

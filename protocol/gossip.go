@@ -172,6 +172,7 @@ func (h *IdenaGossipHandler) Start() {
 		}
 		h.peers.SetOwnShardId(shardId)
 	})
+	h.subscribeSnapshotManifests()
 
 	shardId := h.OwnPeeringShardId()
 	h.connManager.SetShardId(shardId)
@@ -1027,6 +1028,15 @@ func (h *IdenaGossipHandler) sendManifest(p *protoPeer) {
 		return
 	}
 	p.sendMsg(SnapshotManifest, manifest, common.MultiShard, true)
+}
+
+func (h *IdenaGossipHandler) subscribeSnapshotManifests() {
+	h.bus.Subscribe(events.NewSnapshotManifestEventID, func(e eventbus.Event) {
+		manifest := e.(*events.NewSnapshotManifestEvent).Manifest
+		for _, p := range h.peers.Peers() {
+			p.sendMsg(SnapshotManifest, manifest, common.MultiShard, true)
+		}
+	})
 }
 
 func (h *IdenaGossipHandler) syncFlipKeyPool(p *protoPeer) {

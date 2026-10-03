@@ -427,5 +427,6 @@ func (fs *fastSync) postConsuming() (err error) {
 	}
 
 	fs.bus.Publish(events.FastSyncCompletedEvent{})
+	fs.sm.StoreSnapshotManifest(fs.manifest, filePath)
 	return nil
 }

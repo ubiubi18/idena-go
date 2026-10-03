@@ -4,11 +4,13 @@ import (
 	"github.com/idena-network/idena-go/blockchain/types"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
+	"github.com/idena-network/idena-go/core/state/snapshot"
 )
 
 const (
 	NewTxEventID                 = eventbus.EventID("transaction-new")
 	AddBlockEventID              = eventbus.EventID("block-add")
+	NewSnapshotManifestEventID   = eventbus.EventID("snapshot-manifest-new")
 	NewFlipKeyID                 = eventbus.EventID("flip-key-new")
 	FastSyncCompleted            = eventbus.EventID("fast-sync-completed")
 	NewFlipEventID               = eventbus.EventID("flip-new")
@@ -39,6 +41,14 @@ type NewBlockEvent struct {
 
 func (e *NewBlockEvent) EventID() eventbus.EventID {
 	return AddBlockEventID
+}
+
+type NewSnapshotManifestEvent struct {
+	Manifest *snapshot.Manifest
+}
+
+func (e *NewSnapshotManifestEvent) EventID() eventbus.EventID {
+	return NewSnapshotManifestEventID
 }
 
 type NewFlipKeyEvent struct {
