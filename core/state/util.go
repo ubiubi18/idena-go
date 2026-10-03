@@ -53,7 +53,9 @@ func WriteTreeTo2(sourceDb dbm.DB, height uint64, to io.Writer) (common.Hash, er
 		data, _ := proto.Marshal(sb)
 		if err := tw.WriteHeader(&tar.Header{
 			Name: name,
-			Mode: 0600,
+			// 0777 like mholt/archiver, which official nodes use: a snapshot's CID comes from its bytes,
+			// and any other mode gives the same height a second CID that official nodes cannot serve.
+			Mode: 0777,
 			Size: int64(len(data)),
 		}); err != nil {
 			return err
