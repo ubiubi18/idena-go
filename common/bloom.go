@@ -3,6 +3,8 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+
 	"github.com/willf/bloom"
 )
 
@@ -21,6 +23,11 @@ func NewSerializableBF(n int) *SerializableBF {
 }
 
 func NewSerializableBFFromData(data []byte) (*SerializableBF, error) {
+	switch len(data) {
+	case 8, 16, 32, 64, 128, 256, 512:
+	default:
+		return nil, fmt.Errorf("invalid bloom filter length %d", len(data))
+	}
 	buf := make([]uint64, len(data)/binary.Size(uint64(0)))
 	if err := binary.Read(bytes.NewReader(data), binary.BigEndian, buf); err != nil {
 		return nil, err
