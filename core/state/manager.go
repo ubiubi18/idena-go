@@ -234,6 +234,9 @@ func (m *SnapshotManager) DownloadSnapshot(snapshot *snapshot.Manifest) (filePat
 	}()
 
 	wg.Wait()
+	if err := file.Close(); loadToErr == nil {
+		loadToErr = err
+	}
 
 	return filePath, version, loadToErr
 }
