@@ -31,3 +31,21 @@ func TestSerializableBF_Has(t *testing.T) {
 	require.True(t, b2.Has(addr4.Bytes()))
 	require.False(t, b2.Has(Address{0x5}.Bytes()))
 }
+
+func TestSerializableBFRejectsMalformedData(t *testing.T) {
+	for _, length := range []int{0, 1, 7, 9, 24, 513} {
+		filter, err := NewSerializableBFFromData(make([]byte, length))
+		require.Error(t, err, "length %d", length)
+		require.Nil(t, filter, "length %d", length)
+	}
+}
+
+func TestSerializableBFAcceptsProducedSizes(t *testing.T) {
+	for _, count := range []int{0, 8, 16, 32, 64, 128, 256} {
+		data, err := NewSerializableBF(count).Serialize()
+		require.NoError(t, err)
+		filter, err := NewSerializableBFFromData(data)
+		require.NoError(t, err, "count %d", count)
+		require.NotNil(t, filter)
+	}
+}

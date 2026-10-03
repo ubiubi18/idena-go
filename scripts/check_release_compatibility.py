@@ -68,13 +68,35 @@ def validate(lock_file, root_dir, actual_release_tag=None):
     if not isinstance(results, dict):
         fail("gateResults must be an object")
 
-    runtime_commit = ""
-    for component in payload.get("components", []):
-        if component.get("name") == "idena-go":
-            runtime_commit = component.get("runtimeCodeCommit", "")
-            break
-    if not re.fullmatch(r"[0-9a-f]{40}", runtime_commit):
+    components = payload.get("components")
+    if not isinstance(components, list):
+        fail("components must be a list")
+    nodes = [
+        component
+        for component in components
+        if isinstance(component, dict) and component.get("name") == "idena-go"
+    ]
+    if len(nodes) != 1:
+        fail("components must contain exactly one idena-go node")
+    runtime_commit = nodes[0].get("runtimeCodeCommit", "")
+    if not isinstance(runtime_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", runtime_commit):
         fail("idena-go runtimeCodeCommit is invalid")
+    if nodes[0].get("commit") != runtime_commit:
+        fail("idena-go component commit does not match runtimeCodeCommit")
+
+    consumer_pins = payload.get("consumerPins")
+    if not isinstance(consumer_pins, dict) or not consumer_pins:
+        fail("consumerPins must be a non-empty object")
+    node_pin_count = 0
+    for consumer, pins in consumer_pins.items():
+        if not isinstance(pins, dict):
+            fail(f"consumerPins entry for {consumer!r} must be an object")
+        if "idena-go" in pins:
+            node_pin_count += 1
+            if pins["idena-go"] != runtime_commit:
+                fail(f"consumer {consumer!r} idena-go pin does not match runtimeCodeCommit")
+    if node_pin_count == 0:
+        fail("consumerPins must contain an idena-go pin")
 
     digest_pattern = re.compile(r"^[0-9a-f]{64}$")
     for gate in required:

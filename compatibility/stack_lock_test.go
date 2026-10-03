@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	wantReleaseID             = "idena-mainnet-legacy-compat-2026.09.30-rc20"
-	wantNodeCommit            = "e6476584bcca0fb0cff5b01d30d14b80a540c15b"
-	wantRuntimeCommit         = "e6476584bcca0fb0cff5b01d30d14b80a540c15b"
+	wantReleaseID             = "idena-mainnet-legacy-compat-2026.10.03-rc26"
+	wantNodeCommit            = "c1692031c36f13fcdf1b5c92336ece69e6bd6239"
+	wantRuntimeCommit         = "c1692031c36f13fcdf1b5c92336ece69e6bd6239"
 	wantBindingCommit         = "01ccca5cc3c94917725964541954a9f20e3412e9"
 	wantGossipProtocol        = "/idena/gossip/1.1.0"
 	wantMainnetNetwork uint32 = 1
@@ -45,9 +45,10 @@ type stackLock struct {
 		GossipProtocol          string `json:"gossipProtocol"`
 		ConsensusChangesAllowed bool   `json:"consensusChangesAllowed"`
 	} `json:"chainInvariants"`
-	Components    []component           `json:"components"`
-	RequiredGates []string              `json:"requiredGates"`
-	GateResults   map[string]gateResult `json:"gateResults"`
+	Components    []component                  `json:"components"`
+	ConsumerPins  map[string]map[string]string `json:"consumerPins"`
+	RequiredGates []string                     `json:"requiredGates"`
+	GateResults   map[string]gateResult        `json:"gateResults"`
 }
 
 func TestReleaseApprovalRequiresEvidenceForEveryGate(t *testing.T) {
@@ -134,6 +135,17 @@ func TestStackLockPinsReviewedRuntime(t *testing.T) {
 	}
 	if got := components["idena-go"]; got.Commit != wantNodeCommit || got.RuntimeCodeCommit != wantRuntimeCommit {
 		t.Fatalf("idena-go lock drifted: commit=%q runtime=%q", got.Commit, got.RuntimeCodeCommit)
+	}
+	for _, consumer := range []string{"idena-desktop", "idena-social-contract-runner", "idena-web", "idena-indexer", "P2poolBTC"} {
+		pins, exists := lock.ConsumerPins[consumer]
+		if !exists || pins["idena-go"] != wantNodeCommit {
+			t.Fatalf("%s idena-go pin drifted: %q", consumer, pins["idena-go"])
+		}
+	}
+	for consumer, pins := range lock.ConsumerPins {
+		if commit, exists := pins["idena-go"]; exists && commit != wantNodeCommit {
+			t.Fatalf("%s idena-go pin drifted: %q", consumer, commit)
+		}
 	}
 	if got := components["idena-wasm-binding"].Commit; got != wantBindingCommit {
 		t.Fatalf("binding lock drifted: %q", got)

@@ -25,6 +25,10 @@ import (
 
 const FastSyncBatchSize = 1000
 
+// errInvalidTxHistory marks a block body or receipts that cannot be decoded, as opposed to data that
+// IPFS does not serve.
+var errInvalidTxHistory = errors.New("invalid transaction history")
+
 type fastSync struct {
 	pm                   *IdenaGossipHandler
 	log                  log.Logger
@@ -89,10 +93,7 @@ func (fs *fastSync) dropPreliminaries() {
 	fs.chain.RemovePreliminaryHead(nil)
 	fs.chain.RemovePreliminaryConsensusVersion()
 	fs.chain.RemovePreliminaryIntermediateGenesis()
-	if fs.prevConfig != nil {
-		fs.upgrader.RevertConfig(fs.prevConfig)
-		fs.prevConfig = nil
-	}
+	fs.revertConsensusConfig()
 	fs.appState.IdentityState.DropPreliminary()
 	fs.identityStateDB = nil
 }
@@ -105,8 +106,25 @@ func (fs *fastSync) loadValidators() {
 func (fs *fastSync) tryUpgradeConsensus(header *types.Header) {
 	if header.ProposedHeader != nil && header.ProposedHeader.Upgrade == uint32(fs.upgrader.Target()) {
 		fs.log.Info("Detect upgrade block while fast syncing", "upgrade", fs.upgrader.Target())
-		fs.prevConfig = fs.upgrader.UpgradeConfigTo(header.ProposedHeader.Upgrade)
+		fs.upgradeConsensusTo(header.ProposedHeader.Upgrade)
 		fs.chain.WritePreliminaryConsensusVersion(header.ProposedHeader.Upgrade)
+	}
+}
+
+// upgradeConsensusTo applies the consensus version of the downloaded headers. The config from before the
+// first upgrade is kept: the node's own chain still follows it until the fast sync switches to the
+// downloaded chain.
+func (fs *fastSync) upgradeConsensusTo(ver uint32) {
+	if prev := fs.upgrader.UpgradeConfigTo(ver); prev != nil && fs.prevConfig == nil {
+		fs.prevConfig = prev
+	}
+}
+
+// revertConsensusConfig restores the consensus config of the node's own chain.
+func (fs *fastSync) revertConsensusConfig() {
+	if fs.prevConfig != nil {
+		fs.upgrader.RevertConfig(fs.prevConfig)
+		fs.prevConfig = nil
 	}
 }
 
@@ -126,7 +144,7 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 		return 0, err
 	}
 	if ver > 0 {
-		fs.prevConfig = fs.upgrader.UpgradeConfigTo(ver)
+		fs.upgradeConsensusTo(ver)
 	}
 	fs.tryUpgradeConsensus(fs.chain.PreliminaryHead)
 	fs.identityStateDB, err = fs.appState.IdentityState.LoadPreliminary(fs.chain.PreliminaryHead.Height())
@@ -140,6 +158,9 @@ func (fs *fastSync) preConsuming(head *types.Header) (from uint64, err error) {
 	return from, nil
 }
 
+// applyDeferredBlocks applies the deferred headers in order. On error it returns the height to
+// resume from: the one after the last header stored by AddHeaderUnsafe. Requesting a stored height
+// again would get the peer that serves it banned for an invalid height.
 func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 	defer func() {
 		fs.deferredHeaders = []blockPeer{}
@@ -149,17 +170,17 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 
 		if err := fs.validateIdentityState(b); err != nil {
 			fs.pm.BanPeer(b.peerId, err)
-			return b.Header.Height(), err
+			return fs.nextHeight(), err
 		}
 		if !b.IdentityDiff.Empty() {
 			if _, _, err := fs.identityStateDB.CommitTree(int64(b.Header.Height())); err != nil {
-				return b.Header.Height(), err
+				return fs.nextHeight(), err
 			}
 		}
 
 		if err := fs.chain.AddHeaderUnsafe(b.Header); err != nil {
 			fs.pm.BanPeer(b.peerId, err)
-			return b.Header.Height(), err
+			return fs.nextHeight(), err
 		}
 		fs.tryUpgradeConsensus(b.Header)
 
@@ -174,29 +195,45 @@ func (fs *fastSync) applyDeferredBlocks() (uint64, error) {
 		if !b.Cert.Empty() {
 			fs.chain.WriteCertificate(b.Header.Hash(), b.Cert, true)
 		}
-		if b.Header.ProposedHeader == nil || len(b.Header.ProposedHeader.TxBloom) == 0 {
-			continue
-		}
-		bloom, err := common.NewSerializableBFFromData(b.Header.ProposedHeader.TxBloom)
-		if err != nil {
-			return b.Header.Height(), err
-		}
-		if fs.testBloom(bloom) {
-			txs, err := fs.GetBlockTransactions(b.Header.Hash(), b.Header.ProposedHeader.IpfsHash)
-			if err != nil {
-				return b.Header.Height(), err
-			}
-			fs.chain.WriteTxIndex(b.Header.Hash(), txs)
-			fs.chain.Indexer().HandleBlockTransactions(b.Header, txs)
-
-			receipts, err := fs.GetTxReceipts(b.Header.ProposedHeader.TxReceiptsCid)
-			if err != nil {
-				return b.Header.Height(), err
-			}
-			fs.chain.WriteTxReceipts(b.Header.ProposedHeader.TxReceiptsCid, receipts)
+		if err := fs.writeTxHistory(b.Header); errors.Cause(err) == errInvalidTxHistory {
+			fs.log.Error("Invalid transactions of a stored header, its local history is incomplete",
+				"height", b.Header.Height(), "err", err)
+		} else if err != nil {
+			fs.log.Warn("Failed to load the transactions of a stored header, its local history is incomplete",
+				"height", b.Header.Height(), "err", err)
 		}
 	}
 	return 0, nil
+}
+
+// writeTxHistory indexes the transactions and receipts of a stored header if they concern the
+// node's addresses. They are local history only, so a failure does not stop the header chain. It
+// keeps body-derived history when receipts cannot be read, while writing no history if the body
+// itself is unavailable.
+func (fs *fastSync) writeTxHistory(header *types.Header) error {
+	if header.ProposedHeader == nil || len(header.ProposedHeader.TxBloom) == 0 {
+		return nil
+	}
+	bloom, err := common.NewSerializableBFFromData(header.ProposedHeader.TxBloom)
+	if err != nil {
+		return err
+	}
+	if !fs.testBloom(bloom) {
+		return nil
+	}
+	txs, err := fs.GetBlockTransactions(header.Hash(), header.ProposedHeader.IpfsHash)
+	if err != nil {
+		return err
+	}
+	fs.chain.WriteTxIndex(header.Hash(), txs)
+	fs.chain.Indexer().HandleBlockTransactions(header, txs)
+
+	receipts, err := fs.GetTxReceipts(header.ProposedHeader.TxReceiptsCid)
+	if err != nil {
+		return err
+	}
+	fs.chain.WriteTxReceipts(header.ProposedHeader.TxReceiptsCid, receipts)
+	return nil
 }
 
 func (fs *fastSync) testBloom(bloom *common.SerializableBF) bool {
@@ -225,7 +262,7 @@ func (fs *fastSync) GetBlockTransactions(hash common.Hash, ipfsHash []byte) (typ
 		}
 		body := &types.Body{}
 		if err := body.DecodeBytes(txs); err != nil {
-			return nil, errors.Wrap(err, "invalid block body")
+			return nil, errors.Wrap(errInvalidTxHistory, "block body: "+err.Error())
 		}
 		return body.Transactions, nil
 	}
@@ -239,7 +276,11 @@ func (fs *fastSync) GetTxReceipts(receiptCid []byte) (types.TxReceipts, error) {
 			return nil, nil
 		}
 		body := types.TxReceipts{}
-		return body.DecodeBytes(data)
+		receipts, err := body.DecodeBytes(data)
+		if err != nil {
+			return nil, errors.Wrap(errInvalidTxHistory, "receipts: "+err.Error())
+		}
+		return receipts, nil
 	}
 }
 
@@ -284,6 +325,7 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 			fs.deferredHeaders = append(fs.deferredHeaders, blockPeer{*block, batch.p.id})
 			if block.Cert != nil && !block.Cert.Empty() {
 				if from, err := fs.applyDeferredBlocks(); err != nil {
+					fs.log.Warn("Failed to apply block headers", "err", err, "resumeFrom", from)
 					return reload(from)
 				}
 			}
@@ -298,6 +340,11 @@ func (fs *fastSync) processBatch(batch *batch, attemptNum int) error {
 	}
 	fs.log.Info("Finish process batch", "from", batch.from, "to", batch.to)
 	return nil
+}
+
+// nextHeight returns the height of the first header that is not stored yet.
+func (fs *fastSync) nextHeight() uint64 {
+	return fs.chain.PreliminaryHead.Height() + 1
 }
 
 func (fs *fastSync) validateIdentityState(block blockPeer) error {
@@ -332,7 +379,14 @@ func (fs *fastSync) validateHeader(block *block) error {
 	return nil
 }
 
-func (fs *fastSync) postConsuming() error {
+func (fs *fastSync) postConsuming() (err error) {
+	// Until the switch to the downloaded chain, blocks of the node's own chain follow its own consensus
+	// version: a full sync or the next attempt must not apply them with the version of the headers.
+	defer func() {
+		if err != nil {
+			fs.revertConsensusConfig()
+		}
+	}()
 	if fs.chain.PreliminaryHead.Height() != fs.manifest.Height {
 		return errors.New("preliminary head is lower than manifest's head")
 	}
