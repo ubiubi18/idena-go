@@ -38,15 +38,16 @@ func TestChooseSyncPlan(t *testing.T) {
 		{"no snapshot and no fast sync under way", on, 1000, 5000, nil, nil, 0, planFullSync},
 		// Mainnet, 2026-09-28: a new node had its headers up to the snapshot height, and the snapshot
 		// could not be downloaded.
-		{"no snapshot, headers far above the chain", on, 4871137, 11369200, headersAt(11369095), nil, 1, planWaitForSnapshot},
+		{"no snapshot, headers far above the chain", on, 4871137, 11369200, headersAt(11369095), nil, 1, planFullSync},
+		{"failed forged snapshot above honest snapshot", on, 1000, 1200, headersAt(1200), manifest(1000), 1, planFullSync},
 		{"no snapshot, headers barely above the chain", on, 1000, 5000, headersAt(1050), nil, 0, planFullSync},
 		{"newer snapshot while the headers are kept", on, 4871137, 11370200, headersAt(11369095), manifest(11370095), 1, planFastSync},
 		{"fast sync switched off", &config.SyncConfig{FastSync: false, ForceFullSync: 100}, 4871137, 11369200, headersAt(11369095), nil, 1, planFullSync},
 		// Another manifest of the headers' snapshot (another CID for the same height).
 		{"other manifest of the headers' snapshot", on, 4871137, 11369200, headersAt(11369095), manifest(11369095), 1, planFastSync},
 		// The fast sync goes on from its headers, above this snapshot: it cannot complete the sync.
-		{"snapshot below the headers", on, 4871137, 11369200, headersAt(11369095), manifest(11368095), 1, planWaitForSnapshot},
-		{"two failed snapshots", on, 4871137, 11371200, headersAt(11370095), nil, maxFailedSnapshots - 1, planWaitForSnapshot},
+		{"snapshot below the headers", on, 4871137, 11369200, headersAt(11369095), manifest(11368095), 1, planFullSync},
+		{"two failed snapshots", on, 4871137, 11371200, headersAt(11370095), nil, 2, planFullSync},
 		{"too many failed snapshots", on, 4871137, 11371200, headersAt(11371095), nil, maxFailedSnapshots, planFullSync},
 		{"too many failed snapshots, snapshot below the headers", on, 4871137, 11371200, headersAt(11371095), manifest(11370095), maxFailedSnapshots, planFullSync},
 		// A usable snapshot is always tried.
@@ -64,8 +65,8 @@ func TestSnapshotWaitFallsBackToFullSync(t *testing.T) {
 	cfg := &config.SyncConfig{FastSync: true, ForceFullSync: 100}
 	wait := chooseSyncPlan(cfg, 1000, 5000, headersAt(4000), nil, 0)
 	require.Equal(t, planWaitForSnapshot, d.limitSnapshotWait(wait, started))
-	require.Equal(t, planWaitForSnapshot, d.limitSnapshotWait(wait, started.Add(maxSnapshotWait-time.Second)))
-	require.Equal(t, planFullSync, d.limitSnapshotWait(wait, started.Add(maxSnapshotWait)))
+	require.Equal(t, planWaitForSnapshot, d.limitSnapshotWait(wait, started.Add(waitForSnapshotDelay-time.Second)))
+	require.Equal(t, planFullSync, d.limitSnapshotWait(wait, started.Add(waitForSnapshotDelay)))
 	// A usable snapshot still gets tried even after the wait limit.
 	fast := chooseSyncPlan(cfg, 1000, 5000, headersAt(4000), &snapshot.Manifest{Height: 4500}, 0)
 	require.Equal(t, planFastSync, d.limitSnapshotWait(fast, started.Add(maxSnapshotWait)))

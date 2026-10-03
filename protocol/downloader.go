@@ -303,10 +303,10 @@ var waitForSnapshotDelay = time.Minute
 
 // maxFailedSnapshots is how many snapshots the fast sync of the kept headers may give up on before the
 // downloader drops the headers and uses full sync.
-const maxFailedSnapshots = 3
+const maxFailedSnapshots = 1
 
-// A new snapshot may be hours away, but missing manifests must not prevent full sync forever.
-const maxSnapshotWait = 12 * time.Hour
+// Wait once for a new snapshot, then resume from available full blocks.
+const maxSnapshotWait = time.Minute
 
 func (d *Downloader) createBlockApplier() (loader blockApplier, toHeight uint64) {
 	head := d.chain.Head.Height()
