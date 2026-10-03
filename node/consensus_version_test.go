@@ -1,6 +1,7 @@
 package node
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -84,6 +85,23 @@ func TestApplyStoredConsensusVersionDoesNotDowngrade(t *testing.T) {
 
 	if cfg.Consensus.Version != config.ConsensusV12 || !cfg.Consensus.EnableUpgrade12 {
 		t.Fatalf("consensus version = %d, want %d kept", cfg.Consensus.Version, config.ConsensusV12)
+	}
+}
+
+func TestApplyStoredConsensusVersionRejectsUnknownVersion(t *testing.T) {
+	for _, version := range []uint32{uint32(config.ConsensusV12) + 1, 1<<16 + uint32(config.ConsensusV12)} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
+			datadir := t.TempDir()
+			writeConsensusVersion(t, datadir, version)
+			cfg := &config.Config{DataDir: datadir, Consensus: defaultConsensusCopy()}
+
+			if err := ApplyStoredConsensusVersion(cfg); err == nil {
+				t.Fatalf("ApplyStoredConsensusVersion() accepted unsupported version %d", version)
+			}
+			if cfg.Consensus.Version != config.ConsensusV9 {
+				t.Fatalf("consensus version = %d after error, want %d", cfg.Consensus.Version, config.ConsensusV9)
+			}
+		})
 	}
 }
 
