@@ -61,6 +61,7 @@ type BlockchainApi struct {
 	nodeState       *state.NodeState
 	burntCoins      *burntCoinsCache
 	burntCoinsMutex sync.Mutex
+	blocksScanMu    sync.Mutex
 }
 
 type burntCoinsCache struct {
@@ -85,7 +86,7 @@ func (c *burntCoinsCache) put(version int64, value []BurntCoins) {
 }
 
 func NewBlockchainApi(baseApi *BaseApi, bc *blockchain.Blockchain, ipfs ipfs.Proxy, pool *mempool.TxPool, d *protocol.Downloader, pm *protocol.IdenaGossipHandler, nodeState *state.NodeState) *BlockchainApi {
-	return &BlockchainApi{bc, baseApi, ipfs, pool, d, pm, nodeState, newBurntCoinsCache(), sync.Mutex{}}
+	return &BlockchainApi{bc, baseApi, ipfs, pool, d, pm, nodeState, newBurntCoinsCache(), sync.Mutex{}, sync.Mutex{}}
 }
 
 type Block struct {
@@ -158,10 +159,11 @@ type BlocksWithAddressArgs struct {
 
 // BlocksWithAddress returns the heights, from args.From to args.To, of the blocks whose transaction
 // filter holds args.Address: a transaction was sent by it or to it (contract calls included). It reads
-// only the stored headers, so it also works for blocks whose bodies the node does not keep. The filter
-// never misses a block but may match a few blocks without such a transaction: check the transactions
-// of the returned blocks.
-func (api *BlockchainApi) BlocksWithAddress(args BlocksWithAddressArgs) ([]uint64, error) {
+// only the stored headers, so it also works for blocks whose bodies the node does not keep. Fully
+// validated blocks cannot be missed, but a header-only fast-sync node cannot verify the filter against
+// the transactions. Bloom filters can also match blocks without such a transaction: check the returned
+// blocks' transactions when available. Only one search runs at a time.
+func (api *BlockchainApi) BlocksWithAddress(ctx context.Context, args BlocksWithAddressArgs) ([]uint64, error) {
 	if args.From == 0 || args.From > args.To {
 		return nil, errors.New("invalid range")
 	}
@@ -171,8 +173,18 @@ func (api *BlockchainApi) BlocksWithAddress(args BlocksWithAddressArgs) ([]uint6
 	if args.To > api.bc.Head.Height() {
 		return nil, errors.Errorf("block %d is after the head", args.To)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !api.blocksScanMu.TryLock() {
+		return nil, errors.New("a blocksWithAddress query is already running")
+	}
+	defer api.blocksScanMu.Unlock()
 	heights := []uint64{}
 	for height := args.From; height <= args.To; height++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		header := api.bc.GetBlockHeaderByHeight(height)
 		if header == nil {
 			return nil, errors.Errorf("block %d is not stored", height)
@@ -187,6 +199,9 @@ func (api *BlockchainApi) BlocksWithAddress(args BlocksWithAddressArgs) ([]uint6
 		if bloom.Has(args.Address.Bytes()) {
 			heights = append(heights, height)
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return heights, nil
 }
