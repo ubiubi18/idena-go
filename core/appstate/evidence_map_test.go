@@ -2,6 +2,8 @@ package appstate
 
 import (
 	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"github.com/google/tink/go/subtle/random"
 	"github.com/idena-network/idena-go/blockchain/types"
@@ -135,9 +137,50 @@ func TestEvidenceMap_CalculateApprovedCandidates(t *testing.T) {
 	appproved := em.CalculateApprovedCandidates(candidates, maps)
 
 	// assert
-	require.Len(appproved, 2)
+	require.Len(appproved, 1)
 
 	require.Contains(appproved, candidates[0])
-	require.Contains(appproved, candidates[2])
 
+}
+
+func TestEvidenceMap_CalculateApprovedCandidatesLegacyMaps(t *testing.T) {
+	candidate := common.Address{1}
+	duplicateVote, err := hex.DecodeString("013a300000020000000000000000000000180000001a00000000000000")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		maps     [][]byte
+		approved bool
+	}{
+		{name: "unknown prefix counts as empty vote", maps: [][]byte{{0x02, 0x01}, {0xff, 0x00}}},
+		{name: "truncated roaring counts as empty vote", maps: [][]byte{{0x02, 0x01}, {0x01}}},
+		{name: "empty map cannot lower majority", maps: [][]byte{{0x02, 0x01}, nil}},
+		{name: "unknown prefix contributes vote", maps: [][]byte{{0x02, 0x01}, {0xff, 0x01}, {0x02}}, approved: true},
+		{name: "high bits outside candidate range are ignored", maps: [][]byte{{0x02, 0x01}, {0x02, 0x03}, {0x02}}, approved: true},
+		{name: "duplicate roaring values remain separate votes", maps: [][]byte{duplicateVote, {0x02}, {0x02}}, approved: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := (&EvidenceMap{}).CalculateApprovedCandidates([]common.Address{candidate}, tt.maps)
+			require.Equal(t, tt.approved, len(got) == 1)
+		})
+	}
+}
+
+func TestEvidenceMap_CalculateApprovedCandidatesLegacyCardinality(t *testing.T) {
+	// The legacy Roaring reader trusts the declared bitmap cardinality when
+	// allocating ToArray, leaving zero-valued votes after the actual set bits.
+	encoded := make([]byte, 1+16+8192)
+	encoded[0] = 0x01
+	binary.LittleEndian.PutUint32(encoded[1:], 12346)
+	binary.LittleEndian.PutUint32(encoded[5:], 1)
+	binary.LittleEndian.PutUint16(encoded[11:], 4096) // Declares 4097 values.
+	binary.LittleEndian.PutUint32(encoded[13:], 16)
+	encoded[17] = 0x02 // Only candidate 1 is actually set.
+
+	candidates := []common.Address{{1}, {2}}
+	got := (&EvidenceMap{}).CalculateApprovedCandidates(candidates, [][]byte{encoded})
+	require.Equal(t, candidates, got)
 }

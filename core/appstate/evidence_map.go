@@ -65,20 +65,17 @@ func (m *EvidenceMap) NewFlipKeyPackage(author common.Address) {
 
 func (m *EvidenceMap) CalculateApprovedCandidates(candidates []common.Address, maps [][]byte) []common.Address {
 	score := make(map[uint32]int)
-	validMaps := 0
+	minScore := len(maps)/2 + 1
 
 	for _, bm := range maps {
-		bitmap := common.NewBitmap(uint32(len(candidates)))
-		if err := bitmap.Read(bm); err != nil {
+		votes, err := common.LegacyBitmapVotes(bm, uint32(len(candidates)))
+		if err != nil {
 			continue
 		}
-		validMaps++
-
-		for _, v := range bitmap.ToArray() {
-			score[v]++
+		for index, count := range votes {
+			score[index] += count
 		}
 	}
-	minScore := validMaps/2 + 1
 	var result []common.Address
 
 	for i, c := range candidates {
