@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "gate": "independent-rebuild-digest-match",
+  "status": "passed",
+  "testedCommit": "8b4a5121f6d432915805efad18a1c52239e14e1b",
+  "source": "https://github.com/ubiubi18/idena-go/actions/runs/39416924565",
+  "comparisonSource": "https://github.com/ubiubi18/idena-go/actions/runs/39418127590",
+  "sourceCommits": [
+    "a3c37fecc0b99c492a8cd106f8a829d18253d820",
+    "5a33f5fc1144327f8b9a83bdc606b25ada03cc8a"
+  ],
+  "releaseTag": "v1.1.2-rc.29",
+  "releaseArtifacts": [
+    {"platform": "linux-x64", "sha256": "13300e122678f6de5a7ed08dfe2a8b87cf70c07e241f2a8de2cf8f01493f03c9"},
+    {"platform": "linux-arm64", "sha256": "9c64738da3a1490531f191d8d8041f0063e84721fb70ca53d0494035347df303"},
+    {"platform": "windows-x64", "sha256": "e7b45ab26812c52ce73544371e6af4a63a3d071721cc6fe95b123f368bd4826b"},
+    {"platform": "macos-x64", "sha256": "16c19b14b35cf29d1e4786438b0ddc9a33617f7adb99166ef3d0563cea363dd0"},
+    {"platform": "macos-arm64", "sha256": "896834654087dca04c1c9929b0c945c5b08b960c413b9bce302be41a3c9f3292"}
+  ]
+}

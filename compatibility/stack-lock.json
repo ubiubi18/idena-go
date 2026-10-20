@@ -119,6 +119,11 @@
       "status": "passed",
       "evidence": "compatibility/evidence/dependency-policy-rc29.json",
       "sha256": "a03dbba1ac3622873c10c6ee44a8d105c1666d04ab099a38a13b06f30b5a133f"
+    },
+    "independent-rebuild-digest-match": {
+      "status": "passed",
+      "evidence": "compatibility/evidence/independent-rebuild-digest-match-rc29.json",
+      "sha256": "bf3a24154edc2b296a3b1f53499619f532bf954a992cd419c2794bdb7f707221"
     }
   }
 }
