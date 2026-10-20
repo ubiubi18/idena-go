@@ -3,6 +3,7 @@ package common
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"testing"
 
@@ -46,6 +47,58 @@ func TestBitmap_Size(t *testing.T) {
 	buf2 = new(bytes.Buffer)
 	bitmap.WriteTo(buf2)
 	require.True(t, buf.Len()+1 >= buf2.Len())
+}
+
+func TestLegacyBitmapVotesRoaringContainers(t *testing.T) {
+	bitmapContainer := make([]byte, 1+16+8192)
+	bitmapContainer[0] = serializeDefault
+	binary.LittleEndian.PutUint32(bitmapContainer[1:], 12346)
+	binary.LittleEndian.PutUint32(bitmapContainer[5:], 1)
+	binary.LittleEndian.PutUint16(bitmapContainer[11:], 4096) // Declares 4097 values.
+	binary.LittleEndian.PutUint32(bitmapContainer[13:], 16)
+	bitmapContainer[17] = 0x02 // Only candidate 1 is actually set.
+	votes, err := LegacyBitmapVotes(bitmapContainer, 2)
+	require.NoError(t, err)
+	require.Equal(t, map[uint32]int{0: 4096, 1: 1}, votes)
+
+	unsortedKeys := make([]byte, 1+4+4+8+8+4)
+	unsortedKeys[0] = serializeDefault
+	binary.LittleEndian.PutUint32(unsortedKeys[1:], 12346)
+	binary.LittleEndian.PutUint32(unsortedKeys[5:], 2)
+	binary.LittleEndian.PutUint16(unsortedKeys[9:], 1)
+	binary.LittleEndian.PutUint16(unsortedKeys[13:], 0)
+	votes, err = LegacyBitmapVotes(unsortedKeys, 1)
+	require.NoError(t, err)
+	require.Equal(t, map[uint32]int{0: 1}, votes)
+
+	const containers = 16
+	fullRuns := make([]byte, 1+4+2+containers*4+containers*4+containers*6)
+	fullRuns[0] = serializeDefault
+	binary.LittleEndian.PutUint32(fullRuns[1:], uint32(containers-1)<<16|12347)
+	fullRuns[5], fullRuns[6] = 0xff, 0xff
+	for i := 0; i < containers; i++ {
+		binary.LittleEndian.PutUint16(fullRuns[7+i*4:], uint16(i+1))
+		body := 7 + containers*8 + i*6
+		binary.LittleEndian.PutUint16(fullRuns[body:], 1)
+		binary.LittleEndian.PutUint16(fullRuns[body+4:], 0xffff)
+	}
+	votes, err = LegacyBitmapVotes(fullRuns, 1)
+	require.NoError(t, err)
+	require.Empty(t, votes)
+
+	// Legacy ToArray ORs the key with each run value, including values
+	// beyond 16 bits when a malformed run crosses the container boundary.
+	wrappingRun := make([]byte, 1+4+1+4+2+4)
+	wrappingRun[0] = serializeDefault
+	binary.LittleEndian.PutUint32(wrappingRun[1:], 12347)
+	wrappingRun[5] = 1
+	binary.LittleEndian.PutUint16(wrappingRun[6:], 1)
+	binary.LittleEndian.PutUint16(wrappingRun[10:], 1)
+	binary.LittleEndian.PutUint16(wrappingRun[12:], 65535)
+	binary.LittleEndian.PutUint16(wrappingRun[14:], 1)
+	votes, err = LegacyBitmapVotes(wrappingRun, 65537)
+	require.NoError(t, err)
+	require.Equal(t, map[uint32]int{65536: 1}, votes)
 }
 
 func TestBitmap_Contains(t *testing.T) {
