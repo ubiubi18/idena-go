@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "gate": "stack-lock-validation",
+  "status": "passed",
+  "testedCommit": "8b4a5121f6d432915805efad18a1c52239e14e1b",
+  "checkedCommit": "a3c37fecc0b99c492a8cd106f8a829d18253d820",
+  "source": "https://github.com/ubiubi18/idena-go/actions/runs/39416723190/job/118607430587",
+  "checks": [
+    "scripts/check-compatibility-runtime.sh",
+    "go mod verify",
+    "go test ./compatibility ./resources ./common ./crypto ./protocol ./vm/wasm"
+  ]
+}

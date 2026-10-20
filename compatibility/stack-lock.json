@@ -109,5 +109,16 @@
     "secret-scan",
     "dependency-policy"
   ],
-  "gateResults": {}
+  "gateResults": {
+    "stack-lock-validation": {
+      "status": "passed",
+      "evidence": "compatibility/evidence/stack-lock-validation-rc29.json",
+      "sha256": "06edf820dd77f1f09e937267d18119931332ef043b5ad13c82f70c853f0b6670"
+    },
+    "dependency-policy": {
+      "status": "passed",
+      "evidence": "compatibility/evidence/dependency-policy-rc29.json",
+      "sha256": "a03dbba1ac3622873c10c6ee44a8d105c1666d04ab099a38a13b06f30b5a133f"
+    }
+  }
 }
