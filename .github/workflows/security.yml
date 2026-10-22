@@ -26,3 +26,44 @@ jobs:
         run: go mod verify
       - name: Scan dependencies
         run: ./scripts/govulncheck-filter.sh
+
+  secret-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+      - name: Scan pinned runtime source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_commit="$(jq -r '.components[] | select(.name == "idena-go") | .runtimeCodeCommit' compatibility/stack-lock.json)"
+          [[ "$runtime_commit" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git cat-file -t "$runtime_commit")" = commit
+          scan_dir="$RUNNER_TEMP/idena-go-runtime-tree"
+          mkdir -p "$scan_dir"
+          git archive "$runtime_commit" | tar -x -C "$scan_dir"
+
+          archive="$RUNNER_TEMP/gitleaks_8.30.1_linux_x64.tar.gz"
+          curl --fail --location --silent --show-error \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            --output "$archive"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $archive" | sha256sum --check --status
+          tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
+
+          report="$RUNNER_TEMP/gitleaks-report.json"
+          set +e
+          "$RUNNER_TEMP/gitleaks" dir "$scan_dir" \
+            --config "$scan_dir/.gitleaks.toml" --no-banner --redact=100 \
+            --report-format json --report-path "$report" --log-level error
+          scan_status=$?
+          set -e
+          echo "testedCommit=$runtime_commit"
+          echo "checkedCommit=$GITHUB_SHA"
+          echo "trackedPaths=$(git ls-tree -r --name-only "$runtime_commit" | wc -l | tr -d ' ')"
+          echo "configSha256=$(sha256sum "$scan_dir/.gitleaks.toml" | cut -d ' ' -f 1)"
+          echo "reportSha256=$(sha256sum "$report" | cut -d ' ' -f 1)"
+          echo "findingCount=$(jq length "$report")"
+          test "$scan_status" -eq 0
+          test "$(jq length "$report")" -eq 0
