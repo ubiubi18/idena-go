@@ -24,8 +24,9 @@ not trust a digest-shaped string by itself.
 
 The `secret-scan-rc29.json` record is retained for audit but withdrawn from
 `gateResults`: its configuration loaded no detection rules, so its zero
-findings do not establish a passing scan. Add new evidence only after the
-corrected CI job scans the locked tree and history with an active-rule control.
+findings do not establish a passing scan. The replacement
+`secret-scan-rc29-corrected.json` records a CI scan of the locked tree and
+history with an active-rule control.
 
 The `independent-rebuild-digest-match` evidence must also record the exact
 `releaseTag` and a `releaseArtifacts` entry for each supported platform. Every
