@@ -124,11 +124,6 @@
       "status": "passed",
       "evidence": "compatibility/evidence/independent-rebuild-digest-match-rc29.json",
       "sha256": "bf3a24154edc2b296a3b1f53499619f532bf954a992cd419c2794bdb7f707221"
-    },
-    "secret-scan": {
-      "status": "passed",
-      "evidence": "compatibility/evidence/secret-scan-rc29.json",
-      "sha256": "f56b918978576a99b8dcfb70711ae1477e587dfe58c95753aff0d2fd3418ff7c"
     }
   }
 }

@@ -22,6 +22,11 @@ include an HTTPS `source` URL for the underlying logs or attestation. The
 release check recomputes the digest and validates these fields locally; it does
 not trust a digest-shaped string by itself.
 
+The `secret-scan-rc29.json` record is retained for audit but withdrawn from
+`gateResults`: its configuration loaded no detection rules, so its zero
+findings do not establish a passing scan. Add new evidence only after the
+corrected CI job scans the locked tree and history with an active-rule control.
+
 The `independent-rebuild-digest-match` evidence must also record the exact
 `releaseTag` and a `releaseArtifacts` entry for each supported platform. Every
 entry contains `platform` and `sha256`; the release job hashes the newly built

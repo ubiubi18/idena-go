@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-      - name: Scan pinned runtime source tree
+      - name: Scan pinned runtime tree and history
         shell: bash
         run: |
           set -euo pipefail
@@ -52,18 +52,57 @@ jobs:
           echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $archive" | sha256sum --check --status
           tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
 
-          report="$RUNNER_TEMP/gitleaks-report.json"
+          # Prove the checked-out config detects a token in a formerly allowlisted path.
+          control_dir="$RUNNER_TEMP/gitleaks-control"
+          mkdir -p "$control_dir/config"
+          python3 - "$control_dir/config/flags.go" <<'PY'
+          import secrets
+          import string
+          import sys
+
+          alphabet = string.ascii_letters + string.digits
+          token = "ghp_" + "".join(secrets.choice(alphabet) for _ in range(36))
+          with open(sys.argv[1], "w", encoding="utf-8") as output:
+              output.write('token = "' + token + '"\n')
+          PY
+          control_report="$RUNNER_TEMP/gitleaks-control.json"
           set +e
-          "$RUNNER_TEMP/gitleaks" dir "$scan_dir" \
-            --config "$scan_dir/.gitleaks.toml" --no-banner --redact=100 \
-            --report-format json --report-path "$report" --log-level error
-          scan_status=$?
+          "$RUNNER_TEMP/gitleaks" dir "$control_dir" --config .gitleaks.toml \
+            --no-banner --redact=100 --report-format json \
+            --report-path "$control_report" --log-level error
+          control_status=$?
+          set -e
+          if [ "$control_status" -ne 1 ] || [ "$(jq length "$control_report")" -ne 1 ]; then
+            echo "Gitleaks did not detect the planted control token" >&2
+            exit 1
+          fi
+
+          tree_report="$RUNNER_TEMP/gitleaks-tree.json"
+          history_report="$RUNNER_TEMP/gitleaks-history.json"
+          set +e
+          "$RUNNER_TEMP/gitleaks" dir "$scan_dir" --config .gitleaks.toml \
+            --no-banner --redact=100 --report-format json \
+            --report-path "$tree_report" --log-level error
+          tree_status=$?
+          "$RUNNER_TEMP/gitleaks" git . --log-opts="$runtime_commit" \
+            --config .gitleaks.toml --gitleaks-ignore-path .gitleaksignore \
+            --no-banner --redact=100 --report-format json \
+            --report-path "$history_report" --log-level error
+          history_status=$?
           set -e
           echo "testedCommit=$runtime_commit"
           echo "checkedCommit=$GITHUB_SHA"
+          echo "gitleaks=8.30.1 archiveSha256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+          echo "gitTree=$(git rev-parse "$runtime_commit^{tree}")"
           echo "trackedPaths=$(git ls-tree -r --name-only "$runtime_commit" | wc -l | tr -d ' ')"
-          echo "configSha256=$(sha256sum "$scan_dir/.gitleaks.toml" | cut -d ' ' -f 1)"
-          echo "reportSha256=$(sha256sum "$report" | cut -d ' ' -f 1)"
-          echo "findingCount=$(jq length "$report")"
-          test "$scan_status" -eq 0
-          test "$(jq length "$report")" -eq 0
+          echo "historyCommits=$(git rev-list --count "$runtime_commit")"
+          echo "configSha256=$(sha256sum .gitleaks.toml | cut -d ' ' -f 1)"
+          echo "ignoreSha256=$(sha256sum .gitleaksignore | cut -d ' ' -f 1)"
+          echo "treeReportSha256=$(sha256sum "$tree_report" | cut -d ' ' -f 1)"
+          echo "historyReportSha256=$(sha256sum "$history_report" | cut -d ' ' -f 1)"
+          echo "treeFindingCount=$(jq length "$tree_report")"
+          echo "historyFindingCount=$(jq length "$history_report")"
+          test "$tree_status" -eq 0
+          test "$history_status" -eq 0
+          test "$(jq length "$tree_report")" -eq 0
+          test "$(jq length "$history_report")" -eq 0
